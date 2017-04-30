@@ -28,3 +28,39 @@ Sunday April 30th, 2017
 
             - config struct that must be the same on both endpoints in order for the protocol to be compatible
 
+    10:16AM - Sketched out basic project structure.
+
+        This includes premake file, reliable.h, reliable.c, logging and asserts, test harness + setup git repo with gitignore.
+
+        Moving forward now sketching out the config and endpoint structures.
+
+        An endpoint is each side of the reliability system, eg. one on client, one on server per-client.
+
+        Each endpoint must have the same configuration to be compatible, the configuration should be dynamic.
+
+    10:30AM - Have the basic config and endpoint structures setup.
+
+        What is the next step?
+
+        I think it is to bring across the existing functionality from yojimbo for reliability system, commented out, so it can be used as reference.
+
+        Actually, it's not this easy, as there are dependencies, plus the reliability system is yojimbo is spread across the connection system + message system.
+
+        The best way would be to bring across dependencies first.
+
+        These are:
+
+            1. sequence buffer
+            
+            2. generate ack bits function
+
+        I think netcode already has a sequence buffer port, so I can just bring that across and rename it.
+
+        Nope. It doesn't. So this is basically the first step, port across the sequence buffer to "reliable_sequence_buffer" in C and test it.
+        
+        After this, port across generate ack bits to "reliable_generate_ack_bits" function.
+
+    10:40AM - Taking a short break.
+
+        *** BREAK ***
+        

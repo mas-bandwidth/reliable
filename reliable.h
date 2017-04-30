@@ -52,4 +52,13 @@ void reliable_term();
 
 void reliable_log_level( int level );
 
+struct reliable_config_t
+{
+    // ...
+};
+
+struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config );
+
+void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
+
 #endif // #ifndef RELIABLE_H

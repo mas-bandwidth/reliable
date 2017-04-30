@@ -84,6 +84,35 @@ void reliable_term()
 
 // ---------------------------------------------------------------
 
+struct reliable_endpoint_t
+{
+    // ...
+};
+
+struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
+{
+    assert( config );
+
+    (void) config;
+
+    struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
+
+    // ...
+
+    return endpoint;
+}
+
+void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
+{
+    assert( endpoint );
+
+    // ...
+
+    free( endpoint );
+}
+
+// ---------------------------------------------------------------
+
 #if RELIABLE_ENABLE_TESTS
 
 #include <stdio.h>
