@@ -74,6 +74,17 @@ Sunday April 30th, 2017
 
         Sequence buffer functions ported across, stride based generic sequence buffer in C seems to be working well.
 
-        Brought across supporting sequence 
+        Brought across supporting sequence functions.
 
+        Rote converted from C++ to to.
 
+    12:36PM - Finished converting sequence buffer to C.
+
+        It's now ready to test.
+
+        Converting unit test for sequence buffer.
+
+    1:17PM - Finished converting across sequence buffer tests.
+
+        *** BREAK ***
+        

@@ -119,6 +119,8 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
     sequence_buffer->entry_sequence = (uint32_t*) malloc( num_entries * sizeof( uint32_t ) );
     sequence_buffer->entry_data = (uint8_t*) malloc( num_entries * entry_stride );
 
+    memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
+
     return sequence_buffer;
 }
 
@@ -300,9 +302,64 @@ static void test_endian()
 #endif // #if RELIABLE_LITTLE_ENDIAN
 }
 
+struct test_sequence_data_t
+{
+    uint16_t sequence;
+};
+
 static void test_sequence_buffer()
 {
-    // ...
+    #define TEST_SEQUENCE_BUFFER_SIZE 256
+
+    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
+
+    check( sequence_buffer );
+    check( sequence_buffer->sequence == 0 );
+    check( sequence_buffer->num_entries == TEST_SEQUENCE_BUFFER_SIZE );
+    check( sequence_buffer->entry_stride == sizeof( struct test_sequence_data_t ) );
+
+    int i;
+    for ( i = 0; i < TEST_SEQUENCE_BUFFER_SIZE; ++i )
+    {
+        check( reliable_sequence_buffer_find( sequence_buffer, i ) == NULL );
+    }
+
+    for ( i = 0; i <= TEST_SEQUENCE_BUFFER_SIZE*4; ++i )
+    {
+        struct test_sequence_data_t * entry = (struct test_sequence_data_t*) reliable_sequence_buffer_insert( sequence_buffer, i );
+        check( entry );
+        entry->sequence = i;
+        check( sequence_buffer->sequence == i + 1 );
+    }
+
+    for ( i = 0; i <= TEST_SEQUENCE_BUFFER_SIZE; ++i )
+    {
+        struct test_sequence_data_t * entry = (struct test_sequence_data_t*) reliable_sequence_buffer_insert( sequence_buffer, i );
+        check( entry == NULL );
+    }    
+
+    int index = TEST_SEQUENCE_BUFFER_SIZE * 4;
+    for ( i = 0; i < TEST_SEQUENCE_BUFFER_SIZE; ++i )
+    {
+        struct test_sequence_data_t * entry = (struct test_sequence_data_t*) reliable_sequence_buffer_find( sequence_buffer, index );
+        check( entry );
+        check( entry->sequence == (uint32_t) index );
+        index--;
+    }
+
+    reliable_sequence_buffer_reset( sequence_buffer );
+
+    check( sequence_buffer );
+    check( sequence_buffer->sequence == 0 );
+    check( sequence_buffer->num_entries == TEST_SEQUENCE_BUFFER_SIZE );
+    check( sequence_buffer->entry_stride == sizeof( struct test_sequence_data_t ) );
+
+    for ( i = 0; i < TEST_SEQUENCE_BUFFER_SIZE; ++i )
+    {
+        check( reliable_sequence_buffer_find( sequence_buffer, i ) == NULL );
+    }
+
+    reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
 #define RUN_TEST( test_function )                                           \
