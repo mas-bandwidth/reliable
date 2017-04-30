@@ -84,6 +84,139 @@ void reliable_term()
 
 // ---------------------------------------------------------------
 
+int reliable_sequence_greater_than( uint16_t s1, uint16_t s2 )
+{
+    return ( ( s1 > s2 ) && ( s1 - s2 <= 32768 ) ) || 
+           ( ( s1 < s2 ) && ( s2 - s1  > 32768 ) );
+}
+
+int reliable_sequence_less_than( uint16_t s1, uint16_t s2 )
+{
+    return reliable_sequence_greater_than( s2, s1 );
+}
+
+// ---------------------------------------------------------------
+
+struct reliable_sequence_buffer_t
+{
+    uint16_t sequence;
+    int num_entries;
+    int entry_stride;
+    uint32_t * entry_sequence;
+    uint8_t * entry_data;
+};
+
+struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_entries, int entry_stride )
+{
+    assert( num_entries > 0 );
+    assert( entry_stride > 0 );
+
+    struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*) malloc( sizeof( struct reliable_sequence_buffer_t ) );
+
+    sequence_buffer->sequence = 0;
+    sequence_buffer->num_entries = num_entries;
+    sequence_buffer->entry_stride = entry_stride;
+    sequence_buffer->entry_sequence = (uint32_t*) malloc( num_entries * sizeof( uint32_t ) );
+    sequence_buffer->entry_data = (uint8_t*) malloc( num_entries * entry_stride );
+
+    return sequence_buffer;
+}
+
+void reliable_sequence_buffer_destroy( struct reliable_sequence_buffer_t * sequence_buffer )
+{
+    assert( sequence_buffer );
+
+    free( sequence_buffer->entry_sequence );
+    free( sequence_buffer->entry_data );
+
+    memset( sequence_buffer, 0, sizeof( struct reliable_sequence_buffer_t ) );
+
+    free( sequence_buffer );
+}
+
+void reliable_sequence_buffer_reset( struct reliable_sequence_buffer_t * sequence_buffer )
+{
+    assert( sequence_buffer );
+    sequence_buffer->sequence = 0;
+    memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
+}
+
+void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t * sequence_buffer, int start_sequence, int finish_sequence )
+{
+    assert( sequence_buffer );
+    if ( finish_sequence < start_sequence ) 
+    {
+        finish_sequence += 65535;
+    }
+    if ( finish_sequence - start_sequence < sequence_buffer->num_entries )
+    {
+        int sequence;
+        for ( sequence = start_sequence; sequence <= finish_sequence; ++sequence )
+        {
+            sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] = 0xFFFFFFFF;
+        }
+    }
+    else
+    {
+        for ( int i = 0; i < sequence_buffer->num_entries; ++i )
+        {
+            sequence_buffer->entry_sequence[i] = 0xFFFFFFFF;
+        }
+    }
+}
+
+void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    assert( sequence_buffer );
+    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
+    {
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence );
+        sequence_buffer->sequence = sequence + 1;
+    }
+    else if ( reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) )
+    {
+        return NULL;
+    }
+    int index = sequence % sequence_buffer->num_entries;
+    sequence_buffer->entry_sequence[index] = sequence;
+    return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
+}
+
+void reliable_sequence_buffer_remove( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    assert( sequence_buffer );
+    sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] = 0xFFFFFFFF;
+}
+
+int reliable_sequence_buffer_available( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    assert( sequence_buffer );
+    return sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] == 0xFFFFFFFF;
+}
+
+int reliable_sequence_buffer_exists( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    assert( sequence_buffer );
+    return sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] == (uint32_t) sequence;
+}
+
+void * reliable_sequence_buffer_find( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    assert( sequence_buffer );
+    int index = sequence % sequence_buffer->num_entries;
+    return ( ( sequence_buffer->entry_sequence[index] == (uint32_t) sequence ) ) ? ( sequence_buffer->entry_data + index * sequence_buffer->entry_stride ) : NULL;
+}
+
+void * reliable_sequence_buffer_at_index( struct reliable_sequence_buffer_t * sequence_buffer, int index )
+{
+    assert( sequence_buffer );
+    assert( index >= 0 );
+    assert( index < sequence_buffer->num_entries );
+    return sequence_buffer->entry_sequence[index] != 0xFFFFFFFF ? ( sequence_buffer->entry_data + index * sequence_buffer->entry_stride ) : NULL;
+}
+
+// ---------------------------------------------------------------
+
 struct reliable_endpoint_t
 {
     // ...
@@ -167,6 +300,11 @@ static void test_endian()
 #endif // #if RELIABLE_LITTLE_ENDIAN
 }
 
+static void test_sequence_buffer()
+{
+    // ...
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -182,7 +320,7 @@ void reliable_test()
     //while ( 1 )
     {
         RUN_TEST( test_endian );
-        // ...
+        RUN_TEST( test_sequence_buffer );
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );

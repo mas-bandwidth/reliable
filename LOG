@@ -63,4 +63,17 @@ Sunday April 30th, 2017
     10:40AM - Taking a short break.
 
         *** BREAK ***
-        
+
+    11:23AM - Porting across the sequence buffer
+
+        Going to be made a bit tricky by the fact that the sequence buffer is implemented in C++ with templates
+
+        But I think as long as we know the stride of the sequence buffer entries, there should be no problem converting to C.
+
+    12:04PM - Conversion continuing well.
+
+        Sequence buffer functions ported across, stride based generic sequence buffer in C seems to be working well.
+
+        Brought across supporting sequence 
+
+
