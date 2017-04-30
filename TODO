@@ -1,0 +1,43 @@
+DONE
+
+    # of servers per connect token increased from 16 to 32.
+
+    Private connect token is now zero padded to 1024 bytes for consistency
+
+    Connect token buffer size reduced from 4096 to 2048.
+
+    Server should return maximum # of clients to client inside connect token. It's important for client to know that it is client X/Y.
+
+    Fixed bug where client didn't store its client index! Wow. whoops.
+
+    Reduced size of challenge token to 300 bytes. That's all that is needed.
+
+    Removed the always 0 "reason" for connection denied. Pointless. There is only one reason :)
+
+    Added some code on read connection payload packet to ignore packets with payload data size < 1. Otherwise, could have performed zero size allocation.
+
+    Removed the connect token HMAC from the challenge token as it's no longer used.
+
+    Added code to the encryption manager to expire the encryption manager at a future time. This lets the server to ignore clients who don't establish connection with the server within a short period of time.
+
+    I noticed that I'm not caching the user data anymore. What's the point of providing user data in the binary, if it's not cached anywhere in the reference implementation?
+
+    Added code to cache the user data per-client on connect, and an accessor function: netcode_server_client_user_data
+
+    Extended interface so client and server can get next packet sequence # to be sent, and on packet receive can get sequence # of packet. This lets users exploit the 64bit packet sequence for reliability. Without this, it's wasted and the user has to send their own sequence #.
+
+    Switched chacha implementations to IETF 96 bit nonce to support golang port.
+
+    Fixed endian confusion in IPv4 address.
+
+    Fixed memory leaks and uninitialized memory found with valgrind.
+
+    Added soak test and fixed a massive bug where connect_start_time was being set to 0.0, instead of current client time @ connect.
+
+    Setup a profiling suite.
+
+    No perf issues found. All time spent in packet encrypt/decrypt and sendto/recvfrom as expected.
+
+TODO
+    
+    Documentation?

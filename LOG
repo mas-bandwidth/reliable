@@ -1,0 +1,23 @@
+
+Sunday April 30th, 2017
+=======================
+
+    8:30AM - Start work on reliable.io.
+
+        This is the separation of the reliability system out of yojimbo.
+
+        It is intended to make it possible to port these aspects of yojimbo to muliple languages, like C#, Golang, Rust etc.
+
+        Its features will be:
+
+            - pure c reference implementation
+
+            - reliability system (eg. sequence, acks, ack bits)
+
+            - an interface to get acks for packets via data structure, not callback (eg. get array of acks)
+
+            - round trip time and packet loss estimates
+
+            - 
+
+            - MTU fragmentation and reassembly
