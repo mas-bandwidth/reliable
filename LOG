@@ -4,9 +4,9 @@ Sunday April 30th, 2017
 
     8:30AM - Start work on reliable.io.
 
-        This is the separation of the reliability system out of yojimbo.
+        This is the separation of the reliability system out of yojimbo, plus the addition of MTU fragmentation and reassembly.
 
-        It is intended to make it possible to port these aspects of yojimbo to muliple languages, like C#, Golang, Rust etc.
+        It is intended to make it possible to easily port to multiple languages, like C#, Golang, Rust etc.
 
         Its features will be:
 
@@ -18,6 +18,13 @@ Sunday April 30th, 2017
 
             - round trip time and packet loss estimates
 
-            - 
+            - BBR congestion avoidance (via notification, not immediate throttling)
 
-            - MTU fragmentation and reassembly
+                http://queue.acm.org/detail.cfm?id=3022184
+
+                https://blog.acolyer.org/2017/03/31/bbr-congestion-based-congestion-control/
+
+            - MTU packet fragmentation and reassembly
+
+            - config struct that must be the same on both endpoints in order for the protocol to be compatible
+

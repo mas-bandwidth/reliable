@@ -1,5 +1,5 @@
 /*
-    netcode.io reference implementation
+    reliable.io reference implementation
 
     Copyright © 2017, The Network Protocol Company, Inc.
 
@@ -22,24 +22,24 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <netcode.h>
+#include <reliable.h>
 #include <stdio.h>
 #include <assert.h>
 
 #define SERVER_PORT 40000
 
-extern void netcode_test();
+extern void reliable_test();
 
 int main( int argc, char ** argv )
 {
 	(void) argc;
 	(void) argv;
 
-	netcode_init();
+	reliable_init();
 
-    netcode_test();
+    reliable_test();
 
-    netcode_term();
+    reliable_term();
 	
     return 0;
 }
