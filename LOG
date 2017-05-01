@@ -87,4 +87,38 @@ Sunday April 30th, 2017
     1:17PM - Finished converting across sequence buffer tests.
 
         *** BREAK ***
-        
+
+    4:33PM - What's the next step?
+
+        Bringing across ack bits.
+
+        Ack bits test passes.
+
+    4:45PM - Break.
+
+        *** BREAK ***
+
+    5:23PM - Sketching out endpoint structure. What's it going to look like?
+
+        I think it's mostly two sequence buffers (sent and received packets), the most recent sent sequence #, most recent received sequence #,
+        plus some counters (these are very useful for testing and debugging...).
+
+        Moving ahead with this.
+
+    5:51PM - Basic structure for endpoint setup. 
+
+        Implemented create and destroy for endpoint.
+
+        Next I have to think for a while to decide on the interface for the endpoint.
+
+        Fundamentally, I want to design it so that in the future I can reduce copies between it and netcode.io, in the common case.
+
+        First, think of the user facing interface, it should present (in a version that copies), much like the interface for netcode.io, the user should be able to send packets and receive them, and it just looks normal. User should get sequence # of packets, but in this case sequence # should be 16 bit sequence # not 64bit.
+
+        OK I can start from the outside in and design it this way. Later on, to improve performance, I can extend netcode.io and reliable.io interfaces so they have copy free versions.
+
+    6:02PM - Taking a break.
+
+        *** BREAK ***
+
+

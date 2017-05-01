@@ -46,6 +46,9 @@
 #define RELIABLE_LOG_LEVEL_ERROR     2
 #define RELIABLE_LOG_LEVEL_DEBUG     3
 
+#define RELIABLE_ENDPOINT_COUNTER_DUMMY 0
+#define RELIABLE_ENDPOINT_NUM_COUNTERS 1
+
 int reliable_init();
 
 void reliable_term();
@@ -54,7 +57,8 @@ void reliable_log_level( int level );
 
 struct reliable_config_t
 {
-    // ...
+    int sent_packets_buffer_size;
+    int received_packets_buffer_size;
 };
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config );

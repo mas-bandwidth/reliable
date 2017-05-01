@@ -217,22 +217,54 @@ void * reliable_sequence_buffer_at_index( struct reliable_sequence_buffer_t * se
     return sequence_buffer->entry_sequence[index] != 0xFFFFFFFF ? ( sequence_buffer->entry_data + index * sequence_buffer->entry_stride ) : NULL;
 }
 
+void reliable_sequence_buffer_generate_ack_bits( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t * ack, uint32_t * ack_bits )
+{
+    assert( sequence_buffer );
+    assert( ack );
+    assert( ack_bits );
+    *ack = sequence_buffer->sequence - 1;
+    *ack_bits = 0;
+    uint32_t mask = 1;
+    for ( int i = 0; i < 32; ++i )
+    {
+        uint16_t sequence = *ack - i;
+        if ( reliable_sequence_buffer_exists( sequence_buffer, sequence ) )
+            *ack_bits |= mask;
+        mask <<= 1;
+    }
+}
+
 // ---------------------------------------------------------------
 
 struct reliable_endpoint_t
 {
-    // ...
+    struct reliable_config_t config;
+    struct reliable_sequence_buffer_t * sent_packets;
+    struct reliable_sequence_buffer_t * received_packets;
+    uint64_t counters[RELIABLE_ENDPOINT_NUM_COUNTERS];
+};
+
+struct reliable_sent_packet_data_t
+{
+    int dummy;
+};
+
+struct reliable_received_packet_data_t
+{
+    int dummy;
 };
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
 {
     assert( config );
 
-    (void) config;
-
     struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
 
-    // ...
+    memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
+
+    endpoint->config = *config;
+    endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ) );
+    endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ) );
 
     return endpoint;
 }
@@ -240,8 +272,13 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
 void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
 {
     assert( endpoint );
+    assert( endpoint->sent_packets );
+    assert( endpoint->received_packets );
 
-    // ...
+    free( endpoint->sent_packets );
+    free( endpoint->received_packets );
+
+    memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
     free( endpoint );
 }
@@ -307,10 +344,10 @@ struct test_sequence_data_t
     uint16_t sequence;
 };
 
+#define TEST_SEQUENCE_BUFFER_SIZE 256
+
 static void test_sequence_buffer()
 {
-    #define TEST_SEQUENCE_BUFFER_SIZE 256
-
     struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
 
     check( sequence_buffer );
@@ -362,6 +399,44 @@ static void test_sequence_buffer()
     reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
+void test_generate_ack_bits()
+{
+    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
+
+    uint16_t ack = 0;
+    uint32_t ack_bits = 0xFFFFFFFF;
+
+    reliable_sequence_buffer_generate_ack_bits( sequence_buffer, &ack, &ack_bits );
+    check( ack == 0xFFFF );
+    check( ack_bits == 0 );
+
+    int i;
+    for ( i = 0; i <= TEST_SEQUENCE_BUFFER_SIZE; ++i )
+    {
+        reliable_sequence_buffer_insert( sequence_buffer, i );
+    }
+
+    reliable_sequence_buffer_generate_ack_bits( sequence_buffer, &ack, &ack_bits );
+    check( ack == TEST_SEQUENCE_BUFFER_SIZE );
+    check( ack_bits == 0xFFFFFFFF );
+
+    reliable_sequence_buffer_reset( sequence_buffer );
+
+    uint16_t input_acks[] = { 1, 5, 9, 11 };
+    int input_num_acks = sizeof( input_acks ) / sizeof( uint16_t );
+    for ( int i = 0; i < input_num_acks; ++i )
+    {
+        reliable_sequence_buffer_insert( sequence_buffer, input_acks[i] );
+    }
+
+    reliable_sequence_buffer_generate_ack_bits( sequence_buffer, &ack, &ack_bits );
+
+    check( ack == 11 );
+    check( ack_bits == ( 1 | (1<<(11-9)) | (1<<(11-5)) | (1<<(11-1)) ) );
+
+    reliable_sequence_buffer_destroy( sequence_buffer );
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -378,6 +453,7 @@ void reliable_test()
     {
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );
+        RUN_TEST( test_generate_ack_bits );
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );
