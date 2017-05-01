@@ -1,4 +1,69 @@
 
+Monday May 1st, 2017
+====================
+
+    10:22AM - Starting work.
+
+        Designing interface for endpoint. The main question basically is, do we use function pointers to send and process packets?
+
+        I think the answer is yes. This is the easiest implementation for C and will integrate cleanly with C++. For other languages implementations, the decision of how to send packets can be different, for example, if it were a C++ implementation it would be a pure virtual method to be overridden or something like that.
+
+        Either way, the standard part, which is the actual format of packets sent and received, is independent of this decision.
+
+        Moving ahead with sketching out the interface.
+
+    10:53AM - I have the reliable endpoint interface sketched out, short of the callbacks.
+
+        Should the callbacks go in the config? Probably. It would be cleaner than having functions to set these callbacks.
+
+        Adding this now.
+
+    11:08AM - Added function pointers and a uint64_t "identifier" per-endpoint, which is passed to callbacks.
+
+        For yojimbo on server, this would correspond to client index. 64bits allows the id to correspond to a pointer, or whatever else the user wants.
+
+        Now moving ahead with implementation. Start with the packet send for now.
+
+        Need to design the packet format. I think at minimum we need a prefix byte with flags.
+
+        We have one flag that is definitely needed, which is fragment. This can be the low bit.
+
+        If the bit is 1, then this is a fragment, and the rest of that start bit can be interpreted in a particular way (eg. fragment data in there)
+
+        If the bit is 0, then this is a non-fragment, and perhaps we can stash some ack related stuff in the first byte, eg. a flag for perfect prediction.
+
+        We could also stash congestion bits in the first byte, indicating that the other side thinks it is congested, or has detected bad network conditions.
+
+        So don't worry too much about blowing a byte here, we can put useful information in there.
+
+        Start with the byte being zero, meaning no flags, = regular packet, then follow this with the sequence, ack, ack bits data (w. no optimizations yet).
+
+        Later on, we can try to do things like, derive the sequence # from the 64bit sequence sent from netcode.io, optimize for perfect ack bits etc.
+
+        For now, just keep it simple!
+
+    11:18AM - What is the first step here?
+
+        Look at the yojimbo connection packet send and work out what needs to be done here.
+
+    11:42AM - I have the send packet sketched out.
+
+        Including the part up to calling the transmit packet function.
+
+        To move forward I need to bring across netcode functions for reading and writing bytes, shorts, etc.
+
+        Doing this now. Done.
+
+        Now I can write the packet header.
+
+        Done.
+
+    11:52AM - Taking a lunch break.
+
+        *** BREAK ***
+
+
+
 Sunday April 30th, 2017
 =======================
 
@@ -120,5 +185,3 @@ Sunday April 30th, 2017
     6:02PM - Taking a break.
 
         *** BREAK ***
-
-

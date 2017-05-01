@@ -31,6 +31,8 @@
 #include <inttypes.h>
 #include <math.h>
 
+#define RELIABLE_HEADER_BYTES 9
+
 #define RELIABLE_ENABLE_LOGGING 1
 
 #ifndef RELIABLE_ENABLE_TESTS
@@ -236,6 +238,103 @@ void reliable_sequence_buffer_generate_ack_bits( struct reliable_sequence_buffer
 
 // ---------------------------------------------------------------
 
+void reliable_write_uint8( uint8_t ** p, uint8_t value )
+{
+    **p = value;
+    ++(*p);
+}
+
+void reliable_write_uint16( uint8_t ** p, uint16_t value )
+{
+    (*p)[0] = value & 0xFF;
+    (*p)[1] = value >> 8;
+    *p += 2;
+}
+
+void reliable_write_uint32( uint8_t ** p, uint32_t value )
+{
+    (*p)[0] = value & 0xFF;
+    (*p)[1] = ( value >> 8  ) & 0xFF;
+    (*p)[2] = ( value >> 16 ) & 0xFF;
+    (*p)[3] = value >> 24;
+    *p += 4;
+}
+
+void reliable_write_uint64( uint8_t ** p, uint64_t value )
+{
+    (*p)[0] = value & 0xFF;
+    (*p)[1] = ( value >> 8  ) & 0xFF;
+    (*p)[2] = ( value >> 16 ) & 0xFF;
+    (*p)[3] = ( value >> 24 ) & 0xFF;
+    (*p)[4] = ( value >> 32 ) & 0xFF;
+    (*p)[5] = ( value >> 40 ) & 0xFF;
+    (*p)[6] = ( value >> 48 ) & 0xFF;
+    (*p)[7] = value >> 56;
+    *p += 8;
+}
+
+void reliable_write_bytes( uint8_t ** p, uint8_t * byte_array, int num_bytes )
+{
+    int i;
+    for ( i = 0; i < num_bytes; ++i )
+    {
+        reliable_write_uint8( p, byte_array[i] );
+    }
+}
+
+uint8_t reliable_read_uint8( uint8_t ** p )
+{
+    uint8_t value = **p;
+    ++(*p);
+    return value;
+}
+
+uint16_t reliable_read_uint16( uint8_t ** p )
+{
+    uint16_t value;
+    value = (*p)[0];
+    value |= ( ( (uint16_t)( (*p)[1] ) ) << 8 );
+    *p += 2;
+    return value;
+}
+
+uint32_t reliable_read_uint32( uint8_t ** p )
+{
+    uint32_t value;
+    value  = (*p)[0];
+    value |= ( ( (uint32_t)( (*p)[1] ) ) << 8 );
+    value |= ( ( (uint32_t)( (*p)[2] ) ) << 16 );
+    value |= ( ( (uint32_t)( (*p)[3] ) ) << 24 );
+    *p += 4;
+    return value;
+}
+
+uint64_t reliable_read_uint64( uint8_t ** p )
+{
+    uint64_t value;
+    value  = (*p)[0];
+    value |= ( ( (uint64_t)( (*p)[1] ) ) << 8  );
+    value |= ( ( (uint64_t)( (*p)[2] ) ) << 16 );
+    value |= ( ( (uint64_t)( (*p)[3] ) ) << 24 );
+    value |= ( ( (uint64_t)( (*p)[4] ) ) << 32 );
+    value |= ( ( (uint64_t)( (*p)[5] ) ) << 40 );
+    value |= ( ( (uint64_t)( (*p)[6] ) ) << 48 );
+    value |= ( ( (uint64_t)( (*p)[7] ) ) << 56 );
+    *p += 8;
+    return value;
+}
+
+void reliable_read_bytes( uint8_t ** p, uint8_t * byte_array, int num_bytes )
+{
+    int i;
+    for ( i = 0; i < num_bytes; ++i )
+    {
+        byte_array[i] = reliable_read_uint8( p );
+    }
+}
+
+// ---------------------------------------------------------------
+
 struct reliable_endpoint_t
 {
     struct reliable_config_t config;
@@ -246,7 +345,7 @@ struct reliable_endpoint_t
 
 struct reliable_sent_packet_data_t
 {
-    int dummy;
+    uint8_t acked;
 };
 
 struct reliable_received_packet_data_t
@@ -257,6 +356,8 @@ struct reliable_received_packet_data_t
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
 {
     assert( config );
+
+    // todo: we probably want to validate the config here somehow
 
     struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
 
@@ -281,6 +382,84 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
     free( endpoint );
+}
+
+uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * endpoint )
+{
+    assert( endpoint );
+    return endpoint->sent_packets->sequence;
+}
+
+void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
+{
+    assert( endpoint );
+    assert( packet_data );
+
+    (void) endpoint;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    uint16_t sequence = endpoint->sent_packets->sequence;
+    uint16_t ack;
+    uint32_t ack_bits;
+
+    reliable_sequence_buffer_generate_ack_bits( endpoint->sent_packets, &ack, &ack_bits );
+
+    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
+
+    sent_packet_data->acked = 0;
+
+    uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_HEADER_BYTES );
+
+    uint8_t * p = transmit_packet_data;
+
+    reliable_write_uint8( &p, 0 );
+    reliable_write_uint16( &p, sequence );
+    reliable_write_uint16( &p, ack );
+    reliable_write_uint32( &p, ack_bits );
+
+    assert( p - transmit_packet_data == RELIABLE_HEADER_BYTES );
+
+    memcpy( transmit_packet_data + RELIABLE_HEADER_BYTES, packet_data, packet_bytes );
+
+    endpoint->config.transmit_packet_function( endpoint->config.identifier, transmit_packet_data, RELIABLE_HEADER_BYTES + packet_bytes );
+
+    free( transmit_packet_data );
+}
+
+void * reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, int * packet_bytes, uint16_t * packet_sequence )
+{
+    assert( endpoint );
+    assert( packet_bytes );
+    assert( packet_sequence );
+
+    (void) endpoint;
+    (void) packet_bytes;
+    (void) packet_sequence;
+
+    // todo
+
+    return NULL;
+}
+
+void reliable_endpoint_free_packet( struct reliable_endpoint_t * endpoint, void * packet )
+{
+    assert( endpoint );
+    assert( packet );
+
+    (void) endpoint;
+    (void) packet;
+
+    // ...
+}
+
+void reliable_endpoint_update( struct reliable_endpoint_t * endpoint )
+{
+    assert( endpoint );
+
+    (void) endpoint;
+
+    // ...
 }
 
 // ---------------------------------------------------------------
