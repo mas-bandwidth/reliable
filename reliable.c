@@ -688,16 +688,6 @@ void test_transmit_packet_function( void * _context, int index, uint8_t * packet
 
     if ( index == 0 )
     {
-        // hack test
-        uint8_t * p = packet_data;
-        uint8_t prefix = reliable_read_uint8( &p );
-        uint16_t sequence = reliable_read_uint16( &p );
-        (void) prefix;
-        if ( sequence )
-        {
-//            printf( "received = %d\n", sequence );
-        }
-
         reliable_endpoint_receive_packet( context->receiver, packet_data, packet_bytes );
     }
     else if ( index == 1 )
@@ -749,7 +739,7 @@ void test_acks()
     int i;
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
     {
-        uint8_t dummy_packet[1024];
+        uint8_t dummy_packet[8];
 
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
@@ -792,7 +782,6 @@ void test_acks()
     reliable_endpoint_destroy( context.receiver );
 }
 
-/*
 void test_acks_packet_loss()
 {
     struct test_context_t context;
@@ -822,7 +811,7 @@ void test_acks_packet_loss()
     int i;
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
     {
-        uint8_t dummy_packet[1024];
+        uint8_t dummy_packet[8];
 
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
@@ -838,7 +827,9 @@ void test_acks_packet_loss()
     for ( i = 0; i < sender_num_acks; ++i )
     {
         if ( sender_acks[i] < TEST_ACKS_NUM_ITERATIONS )
+        {
             sender_acked_packet[sender_acks[i]] = 1;
+        }
     }
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
     {
@@ -862,7 +853,6 @@ void test_acks_packet_loss()
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
 }
-*/
 
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
@@ -882,7 +872,7 @@ void reliable_test()
         RUN_TEST( test_sequence_buffer );
         RUN_TEST( test_generate_ack_bits );
         RUN_TEST( test_acks );
-//        RUN_TEST( test_acks_packet_loss );
+        RUN_TEST( test_acks_packet_loss );
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );
