@@ -1,4 +1,56 @@
 
+
+Tuesday May 2nd, 2017
+=====================
+
+    9:50AM - Starting work.
+
+        Continuing with endpoint work.
+
+        Extended reliable configuration include void* context pointer. This will allow it to be used from C++.
+
+        Now I need to get an array of acks working. This way I can implement tests that check the set of acks that work.
+
+        Allocated and freed ack array.
+
+        Added interface to get acks, clear ack array (avoids copy).
+
+        Setup code to add acks to ack array.
+
+    10:20AM - Finished work for morning.
+
+        *** BREAK ***
+
+    2:40PM - Back to work.
+
+        It's time to bring across some tests for the ack system.
+
+        Need to setup a framework with a sender and receiver, where packets are shunted in from one to the other in both directions.
+
+        Getting started on this.
+
+    3:21PM - Testing harness setup for endpoints. I should be able to implement an ack test now.
+
+        Bringing across code from yojimbo for testing acks. See if this good, if not, write something new instead.
+
+    3:52PM - Added a basic ack test with no packet loss. Passes.
+
+        Next step is to add one with regular packet loss, eg. drop every 2nd packet, and make sure it comes up in the reported acks.
+
+        Copying and pasting the test and doing this.
+
+    3:57PM
+
+        Nope. There is a bug in the ack system reported by the test on repeated reps. Digging in... it's missing ack #7 on the second run.
+
+        Uninitialized data? Not possible. What could be causing it?!!!
+
+    4:20PM - Logic error.
+
+        I had something wrong in my code that was generating the sending ack. Added a separate variable and it's fixed. Was stepping up even # sequence # instead of all integers.
+
+
+
 Monday May 1st, 2017
 ====================
 
@@ -61,6 +113,24 @@ Monday May 1st, 2017
     11:52AM - Taking a lunch break.
 
         *** BREAK ***
+
+     8:32PM - Time to implement the packet read.
+
+        Packet read implemented. I think it's the correct call to have a process packet function pointer, because this way the process packet fn. can return false if it doesn't want a packet to be acked.
+
+        Adding this now.
+
+     9:41PM - Process packet function is working well.
+
+        Next step is to add the array of acks that can be read by the user (but not via callback).
+
+        Or alternatively, could provide a function callback on packet ack.
+
+        Pros vs. cons? I think I like the ability to read off acks from an array better than a callback.
+
+     9:45PM - Stop work for today.
+
+        *** STOP WORK ***
 
 
 

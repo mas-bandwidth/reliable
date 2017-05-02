@@ -57,11 +57,13 @@ void reliable_log_level( int level );
 
 struct reliable_config_t
 {
-    uint64_t identifier;
+    void * context;
+    int index;
+    int ack_buffer_size;
     int sent_packets_buffer_size;
     int received_packets_buffer_size;
-    void (*transmit_packet_function)(uint64_t,uint8_t*,int);
-    void (*process_packet_function)(uint64_t,uint8_t*,int);
+    void (*transmit_packet_function)(void*,int,uint8_t*,int);
+    int (*process_packet_function)(void*,int,uint8_t*,int);
 };
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config );
@@ -70,9 +72,13 @@ uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * en
 
 void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes );
 
-void * reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, int * packet_bytes, uint16_t * packet_sequence );
+void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes );
 
 void reliable_endpoint_free_packet( struct reliable_endpoint_t * endpoint, void * packet );
+
+uint16_t * reliable_endpoint_get_acks( struct reliable_endpoint_t * endpoint, int * num_acks );
+
+void reliable_endpoint_clear_acks( struct reliable_endpoint_t * endpoint );
 
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint );
 
