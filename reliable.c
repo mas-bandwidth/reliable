@@ -359,8 +359,11 @@ struct reliable_received_packet_data_t
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
 {
     assert( config );
-
-    // todo: we probably want to validate the config here somehow
+    assert( config->ack_buffer_size > 0 );
+    assert( config->sent_packets_buffer_size > 0 );
+    assert( config->received_packets_buffer_size > 0 );
+    assert( config->transmit_packet_function != NULL );
+    assert( config->process_packet_function != NULL );
 
     struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
 
@@ -393,7 +396,7 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
 uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * endpoint )
 {
     assert( endpoint );
-    return endpoint->sent_packets->sequence;
+    return endpoint->sequence;
 }
 
 void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
@@ -406,7 +409,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     uint16_t ack;
     uint32_t ack_bits;
 
-    reliable_sequence_buffer_generate_ack_bits( endpoint->sent_packets, &ack, &ack_bits );
+    reliable_sequence_buffer_generate_ack_bits( endpoint->received_packets, &ack, &ack_bits );
 
     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
@@ -428,6 +431,8 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, transmit_packet_data, RELIABLE_HEADER_BYTES + packet_bytes );
 
     free( transmit_packet_data );
+
+    endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
 }
 
 void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
@@ -440,8 +445,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     (void) packet_data;
     (void) packet_bytes;
 
+    endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
+
     if ( packet_bytes <= RELIABLE_HEADER_BYTES )
+    {
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
         return;
+    }
 
     uint8_t * p = packet_data;
 
@@ -454,14 +464,14 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
     if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + RELIABLE_HEADER_BYTES, packet_bytes - RELIABLE_HEADER_BYTES ) )
     {
-        struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
+        struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
         if ( received_packet_data )
         {
             // todo: fill received packet data (if any is needed)
         }
         else
         {
-            // todo: inc stale packet counter
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
         }
 
         for ( int i = 0; i < 32; ++i )
@@ -475,11 +485,11 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
                     {
                         endpoint->acks[endpoint->num_acks++] = sequence;
-                        // todo: increment acked packet counter
+                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                     }
                     else
                     {
-                        // todo: increment dropped ack counter
+                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED]++;
                     }
                     sent_packet_data->acked = 1;
                 }
@@ -678,6 +688,7 @@ void test_generate_ack_bits()
 
 struct test_context_t
 {
+    int drop;
     struct reliable_endpoint_t * sender;
     struct reliable_endpoint_t * receiver;
 };
@@ -685,6 +696,9 @@ struct test_context_t
 void test_transmit_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
 {
     struct test_context_t * context = (struct test_context_t*) _context;
+
+    if ( context->drop )
+        return;
 
     if ( index == 0 )
     {
@@ -713,6 +727,7 @@ int test_process_packet_function( void * _context, int index, uint8_t * packet_d
 void test_acks()
 {
     struct test_context_t context;
+    memset( &context, 0, sizeof( context ) );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -785,6 +800,7 @@ void test_acks()
 void test_acks_packet_loss()
 {
     struct test_context_t context;
+    memset( &context, 0, sizeof( context ) );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -813,6 +829,8 @@ void test_acks_packet_loss()
     {
         uint8_t dummy_packet[8];
 
+        context.drop = ( i % 2 );
+
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
 
@@ -833,7 +851,7 @@ void test_acks_packet_loss()
     }
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
     {
-        check( sender_acked_packet[i] == 1 );
+        check( sender_acked_packet[i] == (i+1) % 2 );
     }
 
     uint8_t receiver_acked_packet[TEST_ACKS_NUM_ITERATIONS];
@@ -843,11 +861,13 @@ void test_acks_packet_loss()
     for ( i = 0; i < receiver_num_acks; ++i )
     {
         if ( receiver_acks[i] < TEST_ACKS_NUM_ITERATIONS )
+        {
             receiver_acked_packet[receiver_acks[i]] = 1;
+        }
     }
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
     {
-        check( receiver_acked_packet[i] == 1 );
+        check( receiver_acked_packet[i] == (i+1) % 2 );
     }
 
     reliable_endpoint_destroy( context.sender );

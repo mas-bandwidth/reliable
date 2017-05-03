@@ -46,8 +46,13 @@
 #define RELIABLE_LOG_LEVEL_ERROR     2
 #define RELIABLE_LOG_LEVEL_DEBUG     3
 
-#define RELIABLE_ENDPOINT_COUNTER_DUMMY 0
-#define RELIABLE_ENDPOINT_NUM_COUNTERS 1
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT                          0
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED                      1
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED                         2
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE                         3
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS          4
+#define RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED                          5
+#define RELIABLE_ENDPOINT_NUM_COUNTERS                                      6 
 
 int reliable_init();
 

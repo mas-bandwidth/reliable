@@ -49,6 +49,28 @@ Tuesday May 2nd, 2017
 
         I had something wrong in my code that was generating the sending ack. Added a separate variable and it's fixed. Was stepping up even # sequence # instead of all integers.
 
+    4:36PM - Now there is a problem in the packet loss ack test.
+
+        What's causing this? It looks like all packets are being acked, when every 2nd packet is dropped. What?
+
+        Ahahah. Another logic error, was using wrong sequence buffer for ack generation. Using sent packets, instead of received packets. durrrrr.
+
+    4:45PM - Got both tests working now. Taking a break.
+
+        *** BREAK ***
+
+    5:53PM - Next thing to do I think is to add counters to the endpoint. This way we can track things, it would also be good to unit test the counters.
+
+        Adding counters now.
+
+        Basic counters added. Adding some more for edge cases.
+
+        Done.
+
+    6:23PM - Adding some code to validate the config.
+
+        
+
 
 
 Monday May 1st, 2017
