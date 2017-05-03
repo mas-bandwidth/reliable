@@ -41,11 +41,6 @@
   #define RELIABLE_BIG_ENDIAN 1
 #endif
 
-#define RELIABLE_LOG_LEVEL_NONE      0
-#define RELIABLE_LOG_LEVEL_INFO      1
-#define RELIABLE_LOG_LEVEL_ERROR     2
-#define RELIABLE_LOG_LEVEL_DEBUG     3
-
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT                          0
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED                      1
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED                         2
@@ -57,8 +52,6 @@
 int reliable_init();
 
 void reliable_term();
-
-void reliable_log_level( int level );
 
 struct reliable_config_t
 {

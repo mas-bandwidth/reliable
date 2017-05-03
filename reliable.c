@@ -33,44 +33,11 @@
 
 #define RELIABLE_MAX_PACKET_HEADER_BYTES 9
 
-#define RELIABLE_ENABLE_LOGGING 1
-
 #ifndef RELIABLE_ENABLE_TESTS
 #define RELIABLE_ENABLE_TESTS 1
 #endif // #ifndef RELIABLE_ENABLE_TESTS
 
 // ------------------------------------------------------------------
-
-static int log_level = 0;
-
-void reliable_log_level( int level )
-{
-    log_level = level;
-}
-
-#if RELIABLE_ENABLE_LOGGING
-
-void reliable_printf( int level, const char * format, ... ) 
-{
-    if ( level > log_level )
-        return;
-    va_list args;
-    va_start( args, format );
-    vprintf( format, args );
-    va_end( args );
-}
-
-#else // #if RELIABLE_ENABLE_LOGGING
-
-void reliable_printf( int level, const char * format, ... ) 
-{
-    (void) level;
-    (void) format;
-}
-
-#endif // #if RELIABLE_ENABLE_LOGGING
-
-// ---------------------------------------------------------------
 
 int reliable_init()
 {
@@ -737,7 +704,7 @@ do                                                                              
     }                                                                                           \
 } while(0)
 
-void test_endian()
+static void test_endian()
 {
     uint32_t value = 0x11223344;
 
@@ -767,7 +734,7 @@ struct test_sequence_data_t
 
 #define TEST_SEQUENCE_BUFFER_SIZE 256
 
-void test_sequence_buffer()
+static void test_sequence_buffer()
 {
     struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
 
@@ -820,7 +787,7 @@ void test_sequence_buffer()
     reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
-void test_generate_ack_bits()
+static void test_generate_ack_bits()
 {
     struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
 
@@ -858,7 +825,7 @@ void test_generate_ack_bits()
     reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
-void test_packet_header()
+static void test_packet_header()
 {
     uint16_t write_sequence;
     uint16_t write_ack;
@@ -950,7 +917,7 @@ struct test_context_t
     struct reliable_endpoint_t * receiver;
 };
 
-void test_transmit_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+static void test_transmit_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
 {
     struct test_context_t * context = (struct test_context_t*) _context;
 
@@ -967,7 +934,7 @@ void test_transmit_packet_function( void * _context, int index, uint8_t * packet
     }
 }
 
-int test_process_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+static int test_process_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
 {
     struct test_context_t * context = (struct test_context_t*) _context;
 
@@ -981,7 +948,7 @@ int test_process_packet_function( void * _context, int index, uint8_t * packet_d
 
 #define TEST_ACKS_NUM_ITERATIONS 256
 
-void test_acks()
+static void test_acks()
 {
     struct test_context_t context;
     memset( &context, 0, sizeof( context ) );
@@ -1014,6 +981,7 @@ void test_acks()
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
     {
         uint8_t dummy_packet[8];
+        memset( dummy_packet, 0, sizeof( dummy_packet ) );
 
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
@@ -1056,7 +1024,7 @@ void test_acks()
     reliable_endpoint_destroy( context.receiver );
 }
 
-void test_acks_packet_loss()
+static void test_acks_packet_loss()
 {
     struct test_context_t context;
     memset( &context, 0, sizeof( context ) );
@@ -1089,6 +1057,7 @@ void test_acks_packet_loss()
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
     {
         uint8_t dummy_packet[8];
+        memset( dummy_packet, 0, sizeof( dummy_packet ) );
 
         context.drop = ( i % 2 );
 

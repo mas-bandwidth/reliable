@@ -78,6 +78,18 @@ Wednesday May 3rd, 2017
 
         Checking it work then implementing soak test.
 
+    2:03PM - Soak framework is setup.
+
+        Now implementing payload. Just derive it from one of the test acks, but without the checking.
+
+        For the soak to look really good, I need to have some logs added. Ignore for the moment.
+
+    2:12PM - Basic soak test runs.
+
+        Decided I don't need logs for reliable. It's too low level. Logs would be too frequent to turn on for anything other than debugging.
+
+        Adding soak logs.
+
 
 Tuesday May 2nd, 2017
 =====================
