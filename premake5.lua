@@ -22,6 +22,9 @@ solution "reliable"
 project "test"
     files { "test.c", "reliable.c" }
 
+project "soak"
+    files { "soak.c", "reliable.c" }
+
 if os.is "windows" then
 
     -- Windows
@@ -50,6 +53,18 @@ else
             os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 test" == 0 then
                 os.execute "./bin/test"
+            end
+        end
+    }
+
+    newaction
+    {
+        trigger     = "soak",
+        description = "Build and run soak test",
+        execute = function ()
+            os.execute "test ! -e Makefile && premake5 gmake"
+            if os.execute "make -j32 soak" == 0 then
+                os.execute "./bin/soak"
             end
         end
     }
