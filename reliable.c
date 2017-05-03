@@ -598,36 +598,26 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
 
-    // todo: need a read packet header function instead
-    /*
-    if ( packet_bytes <= RELIABLE_REGULAR_PACKET_HEADER_BYTES )
-    {
-        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
-        return;
-    }
-    */
+    uint8_t prefix_byte = packet_data[0];
 
-    uint8_t * p = packet_data;
-
-    uint8_t prefix = reliable_read_uint8( &p );
-
-    if ( prefix == 0 )
+    if ( ( prefix_byte & 1 ) == 0 )
     {
         // regular packet
 
-        uint16_t sequence = reliable_read_uint16( &p );
-        uint16_t ack = reliable_read_uint16( &p );
-        uint32_t ack_bits = reliable_read_uint32( &p );
+        uint16_t sequence;
+        uint16_t ack;
+        uint32_t ack_bits;
 
-        (void) prefix;
-        (void) sequence;
-        (void) ack;
-        (void) ack_bits;
+        int packet_header_bytes = reliable_read_packet_header( packet_data, packet_bytes, &sequence, &ack, &ack_bits );
+        if ( packet_header_bytes < 0 )
+        {
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
+            return;
+        }
 
-        // todo: need read packet header fn here
+        // todo: if remainder of packet size is larger than max packet size, drop packet and inc counter.
 
-        /*
-        if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + RELIABLE_REGULAR_PACKET_HEADER_BYTES, packet_bytes - RELIABLE_REGULAR_PACKET_HEADER_BYTES ) )
+        if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
         {
             struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
             if ( received_packet_data )
@@ -662,12 +652,12 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 ack_bits >>= 1;
             }
         }
-        */
     }
     else
     {
         // fragment packet
 
+        /*
         uint8_t fragment_id = reliable_read_uint8( &p );
         uint8_t num_fragments = reliable_read_uint8( &p );
         uint16_t fragment_bytes = reliable_read_uint16( &p );
@@ -677,6 +667,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         (void) fragment_id;
         (void) num_fragments;
         (void) fragment_bytes;
+        */
     }
 }
 
@@ -1158,18 +1149,12 @@ void reliable_test()
 
     while ( 1 )
     {
-        /*
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );
         RUN_TEST( test_generate_ack_bits );
-        */
-
         RUN_TEST( test_packet_header );
-
-        /*
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
-        */
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );

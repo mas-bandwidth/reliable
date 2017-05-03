@@ -62,7 +62,21 @@ Wednesday May 3rd, 2017
 
         Found and fixed a BUNCH of bugs. Wow. Good call.
 
+        Next I need to hook this up to the send. Checking in work so far.
 
+    12:55PM - Lunch break.
+
+        *** LUNCH ***
+
+    1:22PM - Back to work on integrating the new packet header stuff.
+
+        Once it's integrated and all tests pass, implement soak test.
+
+        Integrating now...
+
+    1:43PM - Done.
+
+        Checking it work then implementing soak test.
 
 
 Tuesday May 2nd, 2017
