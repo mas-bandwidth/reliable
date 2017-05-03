@@ -31,7 +31,7 @@
 #include <inttypes.h>
 #include <math.h>
 
-#define RELIABLE_HEADER_BYTES 9
+#define RELIABLE_MAX_PACKET_HEADER_BYTES 9
 
 #define RELIABLE_ENABLE_LOGGING 1
 
@@ -359,6 +359,7 @@ struct reliable_received_packet_data_t
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
 {
     assert( config );
+    assert( config->max_packet_size > 0 );
     assert( config->ack_buffer_size > 0 );
     assert( config->sent_packets_buffer_size > 0 );
     assert( config->received_packets_buffer_size > 0 );
@@ -399,6 +400,76 @@ uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * en
     return endpoint->sequence;
 }
 
+int reliable_write_packet_header( uint8_t * packet_data, uint16_t sequence, uint16_t ack, uint32_t ack_bits )
+{
+    uint8_t * p = packet_data;
+
+    uint8_t prefix_byte = 0;
+
+    if ( ( ack_bits & 0x000000FF ) != 0x000000FF )
+    {
+        prefix_byte |= (1<<1);
+    }
+
+    if ( ( ack_bits & 0x0000FF00 ) != 0x0000FF00 )
+    {
+        prefix_byte |= (1<<2);
+    }
+
+    if ( ( ack_bits & 0x00FF0000 ) != 0x00FF0000 )
+    {
+        prefix_byte |= (1<<3);
+    }
+
+    if ( ( ack_bits & 0xFF000000 ) != 0xFF000000 )
+    {
+        prefix_byte |= (1<<4);
+    }
+
+    int sequence_difference = sequence - ack;
+    if ( sequence_difference < 0 )
+        sequence_difference += 65536;
+    if ( sequence_difference <= 255 )
+        prefix_byte |= (1<<5);
+
+    reliable_write_uint8( &p, prefix_byte );
+
+    reliable_write_uint16( &p, sequence );
+
+    if ( sequence_difference <= 255 )
+    {
+        reliable_write_uint8( &p, (uint8_t) sequence_difference );
+    }
+    else
+    {
+        reliable_write_uint16( &p, ack );
+    }
+
+    if ( ( ack_bits & 0x000000FF ) != 0x000000FF )
+    {
+        reliable_write_uint8( &p, (uint8_t) ( ack_bits & 0x000000FF ) );
+    }
+
+    if ( ( ack_bits & 0x0000FF00 ) != 0x0000FF00 )
+    {
+        reliable_write_uint8( &p, (uint8_t) ( ( ack_bits & 0x0000FF00 ) >> 8 ) );
+    }
+
+    if ( ( ack_bits & 0x00FF0000 ) != 0x00FF0000 )
+    {
+        reliable_write_uint8( &p, (uint8_t) ( ( ack_bits & 0x00FF0000 ) >> 16 ) );
+    }
+
+    if ( ( ack_bits & 0xFF000000 ) != 0xFF000000 )
+    {
+        reliable_write_uint8( &p, (uint8_t) ( ( ack_bits & 0xFF000000 ) >> 24 ) );
+    }
+
+    assert( p - packet_data <= RELIABLE_MAX_PACKET_HEADER_BYTES );
+
+    return p - packet_data;
+}
+
 void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
 {
     assert( endpoint );
@@ -415,24 +486,104 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     sent_packet_data->acked = 0;
 
-    uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_HEADER_BYTES );
+    if ( packet_bytes <= endpoint->config.max_packet_size )
+    {
+        uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
-    uint8_t * p = transmit_packet_data;
+        int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
 
-    reliable_write_uint8( &p, 0 );
-    reliable_write_uint16( &p, sequence );
-    reliable_write_uint16( &p, ack );
-    reliable_write_uint32( &p, ack_bits );
+        memcpy( transmit_packet_data + packet_header_bytes, packet_data, packet_bytes );
 
-    assert( p - transmit_packet_data == RELIABLE_HEADER_BYTES );
+        endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, transmit_packet_data, packet_header_bytes + packet_bytes );
 
-    memcpy( transmit_packet_data + RELIABLE_HEADER_BYTES, packet_data, packet_bytes );
+        free( transmit_packet_data );
+    }
+    else
+    {
+        // todo: fragment packet
 
-    endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, transmit_packet_data, RELIABLE_HEADER_BYTES + packet_bytes );
+        // prefix byte should be 1. this indicates fragment.
 
-    free( transmit_packet_data );
+        assert( 0 );
+    }
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
+}
+
+int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
+{
+    if ( packet_bytes < 3 )
+    {
+        return -1;
+    }
+
+    uint8_t * p = packet_data;
+
+    uint8_t prefix_byte = reliable_read_uint8( &p );
+
+    assert( ( prefix_byte & 1 ) == 0 );
+
+    *sequence = reliable_read_uint16( &p );
+
+    if ( prefix_byte & (1<<5) )
+    {
+        if ( packet_bytes < 3 + 1 )
+        {
+            return -1;
+        }
+        uint8_t sequence_difference = reliable_read_uint8( &p );
+        *ack = *sequence - sequence_difference;
+    }
+    else
+    {
+        if ( packet_bytes < 3 + 2 )
+        {
+            return -1;
+        }
+        *ack = reliable_read_uint16( &p );
+    }
+
+    int expected_bytes = 0;
+    int i;
+    for ( i = 1; i <= 4; ++i )
+    {
+        if ( prefix_byte & (1<<i) )
+        {
+            expected_bytes++;
+        }
+    }
+    if ( packet_bytes < ( p - packet_data ) + expected_bytes )
+    {
+        return -1;
+    }
+
+    *ack_bits = 0xFFFFFFFF;
+
+    if ( prefix_byte & (1<<1) )
+    {
+        *ack_bits &= 0xFFFFFF00;
+        *ack_bits |= (uint32_t) ( reliable_read_uint8( &p ) );
+    }
+
+    if ( prefix_byte & (1<<2) )
+    {
+        *ack_bits &= 0xFFFF00FF;
+        *ack_bits |= (uint32_t) ( reliable_read_uint8( &p ) ) << 8;
+    }
+
+    if ( prefix_byte & (1<<3) )
+    {
+        *ack_bits &= 0xFF00FFFF;
+        *ack_bits |= (uint32_t) ( reliable_read_uint8( &p ) ) << 16;
+    }
+
+    if ( prefix_byte & (1<<4) )
+    {
+        *ack_bits &= 0x00FFFFFF;
+        *ack_bits |= (uint32_t) ( reliable_read_uint8( &p ) ) << 24;
+    }
+
+    return p - packet_data;
 }
 
 void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
@@ -447,55 +598,85 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
 
-    if ( packet_bytes <= RELIABLE_HEADER_BYTES )
+    // todo: need a read packet header function instead
+    /*
+    if ( packet_bytes <= RELIABLE_REGULAR_PACKET_HEADER_BYTES )
     {
         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
         return;
     }
+    */
 
     uint8_t * p = packet_data;
 
     uint8_t prefix = reliable_read_uint8( &p );
-    uint16_t sequence = reliable_read_uint16( &p );
-    uint16_t ack = reliable_read_uint16( &p );
-    uint32_t ack_bits = reliable_read_uint32( &p );
 
-    (void) prefix;
-
-    if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + RELIABLE_HEADER_BYTES, packet_bytes - RELIABLE_HEADER_BYTES ) )
+    if ( prefix == 0 )
     {
-        struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
-        if ( received_packet_data )
-        {
-            // todo: fill received packet data (if any is needed)
-        }
-        else
-        {
-            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
-        }
+        // regular packet
 
-        for ( int i = 0; i < 32; ++i )
+        uint16_t sequence = reliable_read_uint16( &p );
+        uint16_t ack = reliable_read_uint16( &p );
+        uint32_t ack_bits = reliable_read_uint32( &p );
+
+        (void) prefix;
+        (void) sequence;
+        (void) ack;
+        (void) ack_bits;
+
+        // todo: need read packet header fn here
+
+        /*
+        if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + RELIABLE_REGULAR_PACKET_HEADER_BYTES, packet_bytes - RELIABLE_REGULAR_PACKET_HEADER_BYTES ) )
         {
-            if ( ack_bits & 1 )
-            {                    
-                const uint16_t sequence = ack - i;
-                struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
-                if ( sent_packet_data && !sent_packet_data->acked )
-                {
-                    if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
-                    {
-                        endpoint->acks[endpoint->num_acks++] = sequence;
-                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
-                    }
-                    else
-                    {
-                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED]++;
-                    }
-                    sent_packet_data->acked = 1;
-                }
+            struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
+            if ( received_packet_data )
+            {
+                // todo: fill received packet data (if any is needed)
             }
-            ack_bits >>= 1;
+            else
+            {
+                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
+            }
+
+            for ( int i = 0; i < 32; ++i )
+            {
+                if ( ack_bits & 1 )
+                {                    
+                    const uint16_t sequence = ack - i;
+                    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+                    if ( sent_packet_data && !sent_packet_data->acked )
+                    {
+                        if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
+                        {
+                            endpoint->acks[endpoint->num_acks++] = sequence;
+                            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
+                        }
+                        else
+                        {
+                            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED]++;
+                        }
+                        sent_packet_data->acked = 1;
+                    }
+                }
+                ack_bits >>= 1;
+            }
         }
+        */
+    }
+    else
+    {
+        // fragment packet
+
+        uint8_t fragment_id = reliable_read_uint8( &p );
+        uint8_t num_fragments = reliable_read_uint8( &p );
+        uint16_t fragment_bytes = reliable_read_uint16( &p );
+
+        // ...
+
+        (void) fragment_id;
+        (void) num_fragments;
+        (void) fragment_bytes;
     }
 }
 
@@ -529,7 +710,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint )
 
     (void) endpoint;
 
-    // todo: do we even need this? possibly for some jitter or QoS calculations or something
+    // ...
 }
 
 // ---------------------------------------------------------------
@@ -565,7 +746,7 @@ do                                                                              
     }                                                                                           \
 } while(0)
 
-static void test_endian()
+void test_endian()
 {
     uint32_t value = 0x11223344;
 
@@ -595,7 +776,7 @@ struct test_sequence_data_t
 
 #define TEST_SEQUENCE_BUFFER_SIZE 256
 
-static void test_sequence_buffer()
+void test_sequence_buffer()
 {
     struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
 
@@ -686,6 +867,91 @@ void test_generate_ack_bits()
     reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
+void test_packet_header()
+{
+    uint16_t write_sequence;
+    uint16_t write_ack;
+    uint32_t write_ack_bits;
+
+    uint16_t read_sequence;
+    uint16_t read_ack;
+    uint32_t read_ack_bits;
+
+    uint8_t packet_data[RELIABLE_MAX_PACKET_HEADER_BYTES];
+
+    // worst case, sequence and ack are far apart, no packets acked.
+
+    write_sequence = 10000;
+    write_ack = 100;
+    write_ack_bits = 0;
+
+    int bytes_written = reliable_write_packet_header( packet_data, write_sequence, write_ack, write_ack_bits );
+
+    check( bytes_written == RELIABLE_MAX_PACKET_HEADER_BYTES );
+
+    int bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+
+    check( bytes_read == bytes_written );
+
+    check( read_sequence == write_sequence );
+    check( read_ack == write_ack );
+    check( read_ack_bits == write_ack_bits );
+
+    // rare case. sequence and ack are far apart, significant # of acks are missing
+
+    write_sequence = 10000;
+    write_ack = 100;
+    write_ack_bits = 0xFEFEFFFE;
+
+    bytes_written = reliable_write_packet_header( packet_data, write_sequence, write_ack, write_ack_bits );
+
+    check( bytes_written == 1 + 2 + 2 + 3 );
+
+    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+
+    check( bytes_read == bytes_written );
+
+    check( read_sequence == write_sequence );
+    check( read_ack == write_ack );
+    check( read_ack_bits == write_ack_bits );
+
+    // common case under packet loss. sequence and ack are close together, some acks are missing
+
+    write_sequence = 200;
+    write_ack = 100;
+    write_ack_bits = 0xFFFEFFFF;
+
+    bytes_written = reliable_write_packet_header( packet_data, write_sequence, write_ack, write_ack_bits );
+
+    check( bytes_written == 1 + 2 + 1 + 1 );
+
+    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+
+    check( bytes_read == bytes_written );
+
+    check( read_sequence == write_sequence );
+    check( read_ack == write_ack );
+    check( read_ack_bits == write_ack_bits );
+
+    // ideal case. no packet loss.
+
+    write_sequence = 200;
+    write_ack = 100;
+    write_ack_bits = 0xFFFFFFFF;
+
+    bytes_written = reliable_write_packet_header( packet_data, write_sequence, write_ack, write_ack_bits );
+
+    check( bytes_written == 1 + 2 + 1 );
+
+    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+
+    check( bytes_read == bytes_written );
+
+    check( read_sequence == write_sequence );
+    check( read_ack == write_ack );
+    check( read_ack_bits == write_ack_bits );
+}
+
 struct test_context_t
 {
     int drop;
@@ -734,6 +1000,7 @@ void test_acks()
 
     sender_config.context = &context;
     sender_config.index = 0;
+    sender_config.max_packet_size = 1024;
     sender_config.ack_buffer_size = 256;
     sender_config.sent_packets_buffer_size = 256;
     sender_config.received_packets_buffer_size = 256;
@@ -742,6 +1009,7 @@ void test_acks()
 
     receiver_config.context = &context;
     receiver_config.index = 1;
+    receiver_config.max_packet_size = 1024;
     receiver_config.ack_buffer_size = 256;
     receiver_config.sent_packets_buffer_size = 256;
     receiver_config.received_packets_buffer_size = 256;
@@ -807,6 +1075,7 @@ void test_acks_packet_loss()
 
     sender_config.context = &context;
     sender_config.index = 0;
+    sender_config.max_packet_size = 1024;
     sender_config.ack_buffer_size = 256;
     sender_config.sent_packets_buffer_size = 256;
     sender_config.received_packets_buffer_size = 256;
@@ -815,6 +1084,7 @@ void test_acks_packet_loss()
 
     receiver_config.context = &context;
     receiver_config.index = 1;
+    receiver_config.max_packet_size = 1024;
     receiver_config.ack_buffer_size = 256;
     receiver_config.sent_packets_buffer_size = 256;
     receiver_config.received_packets_buffer_size = 256;
@@ -888,11 +1158,18 @@ void reliable_test()
 
     while ( 1 )
     {
+        /*
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );
         RUN_TEST( test_generate_ack_bits );
+        */
+
+        RUN_TEST( test_packet_header );
+
+        /*
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
+        */
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );

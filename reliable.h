@@ -64,6 +64,9 @@ struct reliable_config_t
 {
     void * context;
     int index;
+    int max_packet_size;
+    int max_fragments;
+    int fragment_size;
     int ack_buffer_size;
     int sent_packets_buffer_size;
     int received_packets_buffer_size;

@@ -1,4 +1,69 @@
 
+Wednesday May 3rd, 2017
+=======================
+
+    9:42PM - Starting work.
+
+        Today I want to get the packet fragmentation and reassembly system implemented and working.
+
+        First step is to bring across the example code from the article on fragmentation.
+
+        Also, thinking about protocol specs, yes it is totally OK to have a maximum of 256 fragments, because of packet loss amplification, you would never want to send that many fragments for a packet anyway.
+
+        Getting started with this now...
+
+        Brought across code. I see the packet format now. Starting with the config to determine when to split apart packets.
+
+        This requires config that specifies the maximum packet size (raw payload). Since the header is variable, it's better to do it that way vs. promising "this is the maximum packet size I will ever generate". Simpler.
+
+    10:11AM - Adding config to support packet fragmentation and re-assembly.
+
+    10:39AM - Added basic support for fragmentation and re-assembly at the config level.
+
+        When packets are sent the max packet size is checked, and different codepaths are run for regular packets vs. packets that need to be split up.
+
+    10:41AM - Now I need to add config to control how the fragmentation is performed.
+
+        This should include maximum # of fragments, fragment size and so on. These should be ints, but validated to be in correct range according to fragment packet header bits.
+
+        Added.
+
+    10:58AM - Had a super cool idea for the prefix byte. 
+
+        Low bit can be the fragment bit. 
+
+        Next 4 bits can be used to indicate when bytes of the ack_bits are all 1s. This is common, so would save a lot of bandwidth.
+
+        I should implement this now, before I go further into the fragmentation and re-assembly.
+
+        Should probably turn this into a function, because I'll need to call it for regular packets in one place, and for fragmented packets (post-reassembly) in another.
+
+        I can also consider some optimization for the ack # relative to sequence, eg. the common case is that it is quite close, so I could set one bit if close, then only send it as a byte (or less, if that other byte is used for something).
+
+    11:03AM - Moving forward with more advanced packet structure.
+
+    11:25AM - Implemented write packet header function.
+
+        Added optimization for the ack_bits, plus another optimization reducing sequence # to one byte.
+
+        This is *probably* enough optimization. It's not *OPTIMAL*. But it's a reasonable optimization, without dropping to a bitpacker.
+
+    11:28AM - Now I need to get the read packet header function implemented, and verify that tests pass.
+
+        I should probably also implement a soak test, just to make sure I've got stability and correct performance across the sequence # wrap around.
+
+        Getting started with the read packet header.
+
+    12:13PM - Read packet header completed.
+
+        Back to basics and unit testing the read/write packet header to make sure it works as expected before trying to hook it up.
+
+    12:53PM - Finished a bunch of packet header tests.
+
+        Found and fixed a BUNCH of bugs. Wow. Good call.
+
+
+
 
 Tuesday May 2nd, 2017
 =====================
@@ -69,7 +134,23 @@ Tuesday May 2nd, 2017
 
     6:23PM - Adding some code to validate the config.
 
-        
+        Done.
+
+        What's the next work that needs to be done?
+
+        I can see that it should probably be the RTT estimates or packet loss over the connection, and possibly some research into the congestion avoidance method to see if it's applicable.
+
+        Alternatively, I could move forward with the packet fragmentation and reassembly support.
+
+        Hard to say what is the most important. If anything, it's probably the fragmentation and reassembly code, because this is the next most important key feature of this protocol.
+
+        Doing that next then.
+
+    6:39PM - Taking a break for dinner. Will continue with the packet fragmentation and reassembly tonight.
+
+        *** BREAK ***
+
+
 
 
 
