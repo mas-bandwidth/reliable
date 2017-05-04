@@ -74,7 +74,17 @@ Thursday May 4th, 2017
 
     4:12PM - Added code to parse the packet header in fragment 0, so I can know fragment size, plus code to ignore fragments that are BS.
 
-        N
+    4:21PM - Continued porting across code. Looking good.
+
+        Have now sketched out everything up to reassembly and log ready to process.
+
+        Some more work required to actually store the fragment data.
+
+        Good progress on reassembly. Time for a break.
+
+    4:23PM - Taking a break.
+
+        *** BREAK ***
 
 
 
