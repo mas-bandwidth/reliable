@@ -90,6 +90,48 @@ Wednesday May 3rd, 2017
 
         Adding soak logs.
 
+    2:18PM - Soak test is working as expected.
+
+        It doesn't do much yet, but once packet fragmentation and re-assembly is implemented, it will do a bunch more work during soak.
+
+        Now that the packet header is implemented, the next logical thing to work on is to go back to the fragmentation and re-assembly.
+
+        No point starting this right now, it's time for a break.
+
+    2:19PM - Taking a break.
+
+        *** BREAK ***
+
+    4:11PM - Time to start implementing the packet fragmentation side.
+
+        To do this start with the packet write. It should be reasonably straightforward. It's the processing of packet fragments and reconstructing that is tricky.
+
+    4:52PM - First pass implemented fragment write. Reasonably straightforward.
+
+        I think I need to implement a function to set defaults for config. As I add new stuff to the config, it's easy to fail to update old configs.
+
+        The max packet size is a bad name, unless it's an actual maximum. There needs to be another setting that specifies packet size above which to split into fragments.
+
+        Should it just always be the fragment size? If fragment size is negative, then disable fragmentation and reassembly. Otherwise, split apart packets larger than fragment size?
+
+        I think it's more flexible if the max packet size before fragmentation is separate. Think this through on the bike ride home.
+
+    5:02PM - Taking a break for bike ride.
+
+        *** BREAK ***
+
+    6:24PM - OK. Next is to fix the max packet before fragment.
+
+        Plus the default config.
+
+    7:04PM - Implemented the default config.
+
+        Fixed some bugs in packet fragmentation on send.
+
+        Added logic to handle max packet size on send, receive, eg. too large.
+
+        Added 
+
 
 Tuesday May 2nd, 2017
 =====================

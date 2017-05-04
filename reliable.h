@@ -49,6 +49,8 @@
 #define RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED                          5
 #define RELIABLE_ENDPOINT_NUM_COUNTERS                                      6 
 
+#define RELIABLE_MAX_PACKET_HEADER_BYTES 9
+
 int reliable_init();
 
 void reliable_term();
@@ -58,6 +60,7 @@ struct reliable_config_t
     void * context;
     int index;
     int max_packet_size;
+    int fragment_above;
     int max_fragments;
     int fragment_size;
     int ack_buffer_size;
@@ -66,6 +69,8 @@ struct reliable_config_t
     void (*transmit_packet_function)(void*,int,uint8_t*,int);
     int (*process_packet_function)(void*,int,uint8_t*,int);
 };
+
+void reliable_default_config( struct reliable_config_t * config );
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config );
 

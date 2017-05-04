@@ -95,21 +95,16 @@ void soak_initialize()
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
 
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
     sender_config.context = &context;
     sender_config.index = 0;
-    sender_config.max_packet_size = 1024;
-    sender_config.ack_buffer_size = 256;
-    sender_config.sent_packets_buffer_size = 256;
-    sender_config.received_packets_buffer_size = 256;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function;
 
     receiver_config.context = &context;
     receiver_config.index = 1;
-    receiver_config.max_packet_size = 1024;
-    receiver_config.ack_buffer_size = 256;
-    receiver_config.sent_packets_buffer_size = 256;
-    receiver_config.received_packets_buffer_size = 256;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function;
 
@@ -132,7 +127,7 @@ void soak_iteration( double time )
 {
     (void) time;
 
-    uint8_t packet[1024];
+    uint8_t packet[16*1024-RELIABLE_MAX_PACKET_HEADER_BYTES];
     memset( packet, 0, sizeof( packet ) );
 
     uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );

@@ -31,8 +31,6 @@
 #include <inttypes.h>
 #include <math.h>
 
-#define RELIABLE_MAX_PACKET_HEADER_BYTES 9
-
 #ifndef RELIABLE_ENABLE_TESTS
 #define RELIABLE_ENABLE_TESTS 1
 #endif // #ifndef RELIABLE_ENABLE_TESTS
@@ -323,10 +321,26 @@ struct reliable_received_packet_data_t
     int dummy;
 };
 
+void reliable_default_config( struct reliable_config_t * config )
+{
+    assert( config );
+    memset( config, 0, sizeof( struct reliable_config_t ) );
+    config->max_packet_size = 16 * 1024 - RELIABLE_MAX_PACKET_HEADER_BYTES;
+    config->fragment_above = 1024;
+    config->max_fragments = 16;
+    config->fragment_size = 1024;
+    config->ack_buffer_size = 256;
+    config->sent_packets_buffer_size = 256;
+    config->received_packets_buffer_size = 256;
+}
+
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
 {
     assert( config );
     assert( config->max_packet_size > 0 );
+    assert( config->fragment_above > 0 );
+    assert( config->max_fragments > 0 );
+    assert( config->fragment_size > 0 );
     assert( config->ack_buffer_size > 0 );
     assert( config->sent_packets_buffer_size > 0 );
     assert( config->received_packets_buffer_size > 0 );
@@ -449,12 +463,20 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     reliable_sequence_buffer_generate_ack_bits( endpoint->received_packets, &ack, &ack_bits );
 
+    if ( packet_bytes > endpoint->config.max_packet_size )
+    {
+        // todo: increase counter. packet too large to send.
+        return;
+    }
+
     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
     sent_packet_data->acked = 0;
 
-    if ( packet_bytes <= endpoint->config.max_packet_size )
+    if ( packet_bytes <= endpoint->config.fragment_above )
     {
+        // regular packet
+
         uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
         int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
@@ -467,11 +489,61 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     }
     else
     {
-        // todo: fragment packet
+        // fragmented packet
 
-        // prefix byte should be 1. this indicates fragment.
+        uint8_t packet_header[RELIABLE_MAX_PACKET_HEADER_BYTES];
 
-        assert( 0 );
+        int packet_header_bytes = reliable_write_packet_header( packet_header, sequence, ack, ack_bits );        
+
+        int total_packet_bytes = packet_header_bytes + packet_bytes;
+
+        int num_fragments = ( total_packet_bytes / endpoint->config.fragment_size ) + ( ( total_packet_bytes % endpoint->config.fragment_size ) != 0 ? 1 : 0 );
+
+        assert( num_fragments > 0 );
+        assert( num_fragments <= endpoint->config.max_fragments );
+
+        uint8_t * fragment_packet_data = (uint8_t*) malloc( packet_header_bytes + endpoint->config.fragment_size );
+
+        uint8_t * q = packet_data;
+
+        uint8_t * end = q + packet_bytes;
+
+        int fragment_id;
+        for ( fragment_id = 0; fragment_id < num_fragments; ++fragment_id )
+        {
+            uint8_t * p = fragment_packet_data;
+
+            reliable_write_uint8( &p, 1 );
+            reliable_write_uint8( &p, fragment_id );
+            reliable_write_uint8( &p, num_fragments );
+
+            if ( fragment_id == 0 )
+            {
+                memcpy( p, packet_header, packet_header_bytes );
+                p += packet_header_bytes;
+            }
+
+            int bytes_to_copy = endpoint->config.fragment_size - 3 - ( ( fragment_id == 0 ) ? packet_header_bytes : 0 );
+
+            if ( q + bytes_to_copy > end )
+            {
+                bytes_to_copy = end - q;
+            }
+
+            memcpy( p, q, bytes_to_copy );
+
+            p += bytes_to_copy;
+            q += bytes_to_copy;
+
+            int fragment_packet_bytes = p - fragment_packet_data;
+
+            assert( fragment_packet_bytes > 0 );
+            assert( fragment_packet_bytes <= endpoint->config.fragment_size );
+
+            endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, fragment_packet_data, fragment_packet_bytes );
+        }
+
+        free( fragment_packet_data );
     }
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
@@ -559,9 +631,11 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     assert( packet_data );
     assert( packet_bytes > 0 );
 
-    (void) endpoint;
-    (void) packet_data;
-    (void) packet_bytes;
+    if ( packet_bytes > endpoint->config.max_packet_size )
+    {
+        // todo: increase counter, packet too large to receive.
+        return;
+    }
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
 
@@ -581,8 +655,6 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
             return;
         }
-
-        // todo: if remainder of packet size is larger than max packet size, drop packet and inc counter.
 
         if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
         {
@@ -623,6 +695,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     else
     {
         // fragment packet
+
+        printf( "received fragment packet\n" );
 
         /*
         uint8_t fragment_id = reliable_read_uint8( &p );
@@ -956,21 +1030,16 @@ static void test_acks()
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
 
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
     sender_config.context = &context;
     sender_config.index = 0;
-    sender_config.max_packet_size = 1024;
-    sender_config.ack_buffer_size = 256;
-    sender_config.sent_packets_buffer_size = 256;
-    sender_config.received_packets_buffer_size = 256;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function;
 
     receiver_config.context = &context;
     receiver_config.index = 1;
-    receiver_config.max_packet_size = 1024;
-    receiver_config.ack_buffer_size = 256;
-    receiver_config.sent_packets_buffer_size = 256;
-    receiver_config.received_packets_buffer_size = 256;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function;
 
@@ -1032,21 +1101,16 @@ static void test_acks_packet_loss()
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
 
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
     sender_config.context = &context;
     sender_config.index = 0;
-    sender_config.max_packet_size = 1024;
-    sender_config.ack_buffer_size = 256;
-    sender_config.sent_packets_buffer_size = 256;
-    sender_config.received_packets_buffer_size = 256;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function;
 
     receiver_config.context = &context;
     receiver_config.index = 1;
-    receiver_config.max_packet_size = 1024;
-    receiver_config.ack_buffer_size = 256;
-    receiver_config.sent_packets_buffer_size = 256;
-    receiver_config.received_packets_buffer_size = 256;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function;
 
