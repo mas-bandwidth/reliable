@@ -16,6 +16,22 @@ Thursday May 4th, 2017
 
         Next step now is to implement the functionality for processing fragment packets. I think this is basically just a sequence buffer.
 
+    11:25AM - Now thinking about how to best implement the packet reassembly.
+
+        It's clear that it is a sequence buffer, and each sequence buffer entry needs to store:
+
+            a) the packet header info
+            b) the # of fragments in the packet
+            c) the # of fragments received so far
+            d) pointer to packet data (should be one big block, allocated to worst case size for # of fragments known)
+            e) the total packet size (only known when n-1th fragment is received)
+
+        This way there is no need for a copy on process, since the packet will be fully formed ready to pass to process (intact with packet header).
+
+    11:49AM - Time for a break.
+
+        *** BREAK ***
+
 
 Wednesday May 3rd, 2017
 =======================
