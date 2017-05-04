@@ -130,7 +130,10 @@ Wednesday May 3rd, 2017
 
         Added logic to handle max packet size on send, receive, eg. too large.
 
-        Added 
+        Next thing to do is to add counters when packets are too large to send, receive, then implement receive processing for fragment packets.
+
+        Adding the counters now. Done.
+
 
 
 Tuesday May 2nd, 2017

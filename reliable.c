@@ -465,7 +465,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     if ( packet_bytes > endpoint->config.max_packet_size )
     {
-        // todo: increase counter. packet too large to send.
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_SEND]++;
         return;
     }
 
@@ -633,7 +633,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
     if ( packet_bytes > endpoint->config.max_packet_size )
     {
-        // todo: increase counter, packet too large to receive.
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE]++;
         return;
     }
 
@@ -680,10 +680,6 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         {
                             endpoint->acks[endpoint->num_acks++] = sequence;
                             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
-                        }
-                        else
-                        {
-                            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_ACKS_DROPPED]++;
                         }
                         sent_packet_data->acked = 1;
                     }
