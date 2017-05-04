@@ -134,6 +134,26 @@ Wednesday May 3rd, 2017
 
         Adding the counters now. Done.
 
+    7:16PM - Taking break for dinner.
+
+        *** DINNER ***
+
+    7:37PM - Back at work on the fragmentation.
+
+        What data structures do I need for the packet fragment receive processing?
+
+        Look at existing sample code.
+
+        Some things need to be done before moving forward:
+
+        1. The packet fragments need to identify which packet sequence # they belong to (16 bit seq #)
+
+        2. I don't like the config needing to be aware of the header size for max packet size. it should be done under the covers.
+
+    8:01PM - Stopping work for today.
+
+        *** STOP WORK ***
+
 
 
 Tuesday May 2nd, 2017
