@@ -325,7 +325,7 @@ void reliable_default_config( struct reliable_config_t * config )
 {
     assert( config );
     memset( config, 0, sizeof( struct reliable_config_t ) );
-    config->max_packet_size = 16 * 1024 - RELIABLE_MAX_PACKET_HEADER_BYTES;
+    config->max_packet_size = 16 * 1024;
     config->fragment_above = 1024;
     config->max_fragments = 16;
     config->fragment_size = 1024;
@@ -493,16 +493,16 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         uint8_t packet_header[RELIABLE_MAX_PACKET_HEADER_BYTES];
 
+        memset( packet_header, 0, RELIABLE_MAX_PACKET_HEADER_BYTES );
+
         int packet_header_bytes = reliable_write_packet_header( packet_header, sequence, ack, ack_bits );        
 
-        int total_packet_bytes = packet_header_bytes + packet_bytes;
-
-        int num_fragments = ( total_packet_bytes / endpoint->config.fragment_size ) + ( ( total_packet_bytes % endpoint->config.fragment_size ) != 0 ? 1 : 0 );
+        int num_fragments = ( packet_bytes / endpoint->config.fragment_size ) + ( ( packet_bytes % endpoint->config.fragment_size ) != 0 ? 1 : 0 );
 
         assert( num_fragments > 0 );
         assert( num_fragments <= endpoint->config.max_fragments );
 
-        uint8_t * fragment_packet_data = (uint8_t*) malloc( packet_header_bytes + endpoint->config.fragment_size );
+        uint8_t * fragment_packet_data = (uint8_t*) malloc( RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size );
 
         uint8_t * q = packet_data;
 
@@ -514,6 +514,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             uint8_t * p = fragment_packet_data;
 
             reliable_write_uint8( &p, 1 );
+            reliable_write_uint16( &p, sequence );
             reliable_write_uint8( &p, fragment_id );
             reliable_write_uint8( &p, num_fragments );
 
@@ -523,8 +524,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
                 p += packet_header_bytes;
             }
 
-            int bytes_to_copy = endpoint->config.fragment_size - 3 - ( ( fragment_id == 0 ) ? packet_header_bytes : 0 );
-
+            int bytes_to_copy = endpoint->config.fragment_size;
             if ( q + bytes_to_copy > end )
             {
                 bytes_to_copy = end - q;
@@ -536,9 +536,6 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             q += bytes_to_copy;
 
             int fragment_packet_bytes = p - fragment_packet_data;
-
-            assert( fragment_packet_bytes > 0 );
-            assert( fragment_packet_bytes <= endpoint->config.fragment_size );
 
             endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, fragment_packet_data, fragment_packet_bytes );
         }

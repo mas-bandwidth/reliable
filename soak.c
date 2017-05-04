@@ -127,7 +127,7 @@ void soak_iteration( double time )
 {
     (void) time;
 
-    uint8_t packet[16*1024-RELIABLE_MAX_PACKET_HEADER_BYTES];
+    uint8_t packet[16*1024];
     memset( packet, 0, sizeof( packet ) );
 
     uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );

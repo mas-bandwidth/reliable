@@ -51,6 +51,7 @@
 #define RELIABLE_ENDPOINT_NUM_COUNTERS                                      7 
 
 #define RELIABLE_MAX_PACKET_HEADER_BYTES 9
+#define RELIABLE_FRAGMENT_HEADER_BYTES 5
 
 int reliable_init();
 

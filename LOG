@@ -1,4 +1,22 @@
 
+Thursday May 4th, 2017
+======================
+
+    11:08AM - First thing that needs to be done today is to add the sequence # in front of fragments, then fix the annoying bit with the packet header in first fragment.
+
+        Starting this now. Important to get this sorted out before starting on fragment receive processing.
+
+        Added the first fix to this to soak, that verifies it craps out with a 16k packet, with 1k fragments, 16 max. 
+
+        Now to fix this...
+
+    11:23AM - Yes. The work is finished.
+
+        The fragments packets are now not guaranteed to be a max size, the sequence # is added in front of each fragment, and the 0 fragment has the variable length packet header in front of it.
+
+        Next step now is to implement the functionality for processing fragment packets. I think this is basically just a sequence buffer.
+
+
 Wednesday May 3rd, 2017
 =======================
 
