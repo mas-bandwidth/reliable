@@ -56,6 +56,21 @@ Thursday May 4th, 2017
 
         Adding this now.
 
+    3:34PM - Added the insert with cleanup. It seems to be working well.
+
+        To make sure I'm not leaking memory, go ahead with porting across the valgrind test from netcode.io
+
+        Done. Fixing some stuff that linux gcc doesn't like when compiling, eg. for (int i ...)
+
+    3:43PM - Some leaks found.
+
+        Debugging... need to get this leak free before I move forward any further.
+
+    3:52PM - Leaks are fixed.
+
+        Good stuff.
+
+
 
 Wednesday May 3rd, 2017
 =======================

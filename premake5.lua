@@ -89,6 +89,24 @@ else
 
     newaction
     {
+        trigger     = "docker",
+        description = "Build and run reliable.io tests inside docker",
+        execute = function ()
+            os.execute "rm -rf docker/reliable.io && mkdir -p docker/reliable.io && cp *.h docker/reliable.io && cp *.c docker/reliable.io && cp premake5.lua docker/reliable.io && cd docker && docker build -t \"networkprotocol:reliable.io-server\" . && rm -rf reliable.io && docker run -ti -p 40000:40000/udp networkprotocol:reliable.io-server"
+        end
+    }
+
+    newaction
+    {
+        trigger     = "valgrind",
+        description = "Run valgrind over tests inside docker",
+        execute = function ()
+            os.execute "rm -rf valgrind/reliable.io && mkdir -p valgrind/reliable.io && cp *.h valgrind/reliable.io && cp *.c valgrind/reliable.io && cp premake5.lua valgrind/reliable.io && cd valgrind && docker build -t \"networkprotocol:reliable.io-valgrind\" . && rm -rf reliable.io && docker run -ti networkprotocol:reliable.io-valgrind"
+        end
+    }
+
+    newaction
+    {
         trigger     = "loc",
         description = "Count lines of code",
         execute = function ()

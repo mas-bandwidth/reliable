@@ -133,7 +133,8 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
     }
     else
     {
-        for ( int i = 0; i < sequence_buffer->num_entries; ++i )
+        int i;
+        for ( i = 0; i < sequence_buffer->num_entries; ++i )
         {
             if ( cleanup_function )
             {
@@ -223,7 +224,8 @@ void reliable_sequence_buffer_generate_ack_bits( struct reliable_sequence_buffer
     *ack = sequence_buffer->sequence - 1;
     *ack_bits = 0;
     uint32_t mask = 1;
-    for ( int i = 0; i < 32; ++i )
+    int i;
+    for ( i = 0; i < 32; ++i )
     {
         uint16_t sequence = *ack - i;
         if ( reliable_sequence_buffer_exists( sequence_buffer, sequence ) )
@@ -437,9 +439,10 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     }
 
     free( endpoint->acks );
-    free( endpoint->sent_packets );
-    free( endpoint->received_packets );
-    free( endpoint->fragment_reassembly );
+
+    reliable_sequence_buffer_destroy( endpoint->sent_packets );
+    reliable_sequence_buffer_destroy( endpoint->received_packets );
+    reliable_sequence_buffer_destroy( endpoint->fragment_reassembly );
 
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
@@ -736,7 +739,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
             }
 
-            for ( int i = 0; i < 32; ++i )
+            int i;
+            for ( i = 0; i < 32; ++i )
             {
                 if ( ack_bits & 1 )
                 {                    
@@ -982,7 +986,7 @@ static void test_generate_ack_bits()
 
     uint16_t input_acks[] = { 1, 5, 9, 11 };
     int input_num_acks = sizeof( input_acks ) / sizeof( uint16_t );
-    for ( int i = 0; i < input_num_acks; ++i )
+    for ( i = 0; i < input_num_acks; ++i )
     {
         reliable_sequence_buffer_insert( sequence_buffer, input_acks[i] );
     }
