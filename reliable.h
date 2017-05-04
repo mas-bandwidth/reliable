@@ -68,6 +68,7 @@ struct reliable_config_t
     int ack_buffer_size;
     int sent_packets_buffer_size;
     int received_packets_buffer_size;
+    int fragment_reassembly_buffer_size;
     void (*transmit_packet_function)(void*,int,uint8_t*,int);
     int (*process_packet_function)(void*,int,uint8_t*,int);
 };

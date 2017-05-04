@@ -32,6 +32,30 @@ Thursday May 4th, 2017
 
         *** BREAK ***
 
+    2:02PM - Back to work.
+
+        Time to sketch out the data structure for fragment reassembly.
+
+        I think that disabling the packet header optimization will make the code simpler, so I'm going to do that for large fragment packets.
+
+        eg. pad zeros to the max packet header bytes. This way it's a known size. Doing this now. Done.
+
+        Now I need to sketch out the data structure for the reassembly sequence buffer.
+
+        Sketched out. Backflipped on the packet header, I can handle it being variable length now. I need to call the fn. to parse it anyway.
+
+        Just need to make sure some data is reserved at the front of the packet data for worst case packet header. Easy.
+
+    2:26PM - Moving on to implementation. 
+
+    3:13PM - Good progress with implementation.
+
+        To efficiently clean up and free old packet data, I need to add a callback functor to the insert, so when it clears entries, it can call the cleanup functor on them.
+
+        This needs to be done before going any further, because it's nothing but a huge set of memory leaks right now.
+
+        Adding this now.
+
 
 Wednesday May 3rd, 2017
 =======================

@@ -59,7 +59,7 @@ void test_transmit_packet_function( void * _context, int index, uint8_t * packet
 {
     struct test_context_t * context = (struct test_context_t*) _context;
 
-    if ( random_int(0,100) < 25 )
+    if ( random_int(0,100) < 5 )
         return;
 
     if ( index == 0 )

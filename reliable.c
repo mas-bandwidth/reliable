@@ -88,6 +88,8 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
 
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
 
+    memset( sequence_buffer->entry_data, 0, num_entries * entry_stride );
+
     return sequence_buffer;
 }
 
@@ -110,7 +112,7 @@ void reliable_sequence_buffer_reset( struct reliable_sequence_buffer_t * sequenc
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
 }
 
-void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t * sequence_buffer, int start_sequence, int finish_sequence )
+void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t * sequence_buffer, int start_sequence, int finish_sequence, void (*cleanup_function)(void*) )
 {
     assert( sequence_buffer );
     if ( finish_sequence < start_sequence ) 
@@ -122,6 +124,10 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
         int sequence;
         for ( sequence = start_sequence; sequence <= finish_sequence; ++sequence )
         {
+            if ( cleanup_function )
+            {
+                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ) );
+            }
             sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] = 0xFFFFFFFF;
         }
     }
@@ -129,6 +135,10 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
     {
         for ( int i = 0; i < sequence_buffer->num_entries; ++i )
         {
+            if ( cleanup_function )
+            {
+                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * i );
+            }
             sequence_buffer->entry_sequence[i] = 0xFFFFFFFF;
         }
     }
@@ -139,7 +149,7 @@ void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequ
     assert( sequence_buffer );
     if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
     {
-        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence );
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, NULL );
         sequence_buffer->sequence = sequence + 1;
     }
     else if ( reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) )
@@ -147,6 +157,27 @@ void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequ
         return NULL;
     }
     int index = sequence % sequence_buffer->num_entries;
+    sequence_buffer->entry_sequence[index] = sequence;
+    return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
+}
+
+void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence, void (*cleanup_function)(void*) )
+{
+    assert( sequence_buffer );
+    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
+    {
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, cleanup_function );
+        sequence_buffer->sequence = sequence + 1;
+    }
+    else if ( reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) )
+    {
+        return NULL;
+    }
+    int index = sequence % sequence_buffer->num_entries;
+    if ( sequence_buffer->entry_sequence[index] != 0xFFFFFFFF )
+    {
+        cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ) );
+    }
     sequence_buffer->entry_sequence[index] = sequence;
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
@@ -300,6 +331,30 @@ void reliable_read_bytes( uint8_t ** p, uint8_t * byte_array, int num_bytes )
 
 // ---------------------------------------------------------------
 
+struct reliable_fragment_reassembly_data_t
+{
+    uint16_t sequence;
+    uint16_t ack;
+    uint32_t ack_bits;
+    int num_fragments_received;
+    int num_fragments_total;
+    uint8_t * packet_data;
+    int packet_bytes;
+    uint8_t fragment_received[256];
+};
+
+void reliable_fragment_reassembly_data_cleanup( void * data )
+{
+    struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) data;
+    if ( reassembly_data->packet_data )
+    {
+        free( reassembly_data->packet_data );
+        reassembly_data->packet_data = NULL;
+    }
+}
+
+// ---------------------------------------------------------------
+
 struct reliable_endpoint_t
 {
     struct reliable_config_t config;
@@ -308,6 +363,7 @@ struct reliable_endpoint_t
     uint16_t sequence;
     struct reliable_sequence_buffer_t * sent_packets;
     struct reliable_sequence_buffer_t * received_packets;
+    struct reliable_sequence_buffer_t * fragment_reassembly;
     uint64_t counters[RELIABLE_ENDPOINT_NUM_COUNTERS];
 };
 
@@ -332,6 +388,7 @@ void reliable_default_config( struct reliable_config_t * config )
     config->ack_buffer_size = 256;
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
+    config->fragment_reassembly_buffer_size = 64;
 }
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
@@ -340,6 +397,7 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     assert( config->max_packet_size > 0 );
     assert( config->fragment_above > 0 );
     assert( config->max_fragments > 0 );
+    assert( config->max_fragments <= 256 );
     assert( config->fragment_size > 0 );
     assert( config->ack_buffer_size > 0 );
     assert( config->sent_packets_buffer_size > 0 );
@@ -355,6 +413,7 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->acks = (uint16_t*) malloc( config->ack_buffer_size * sizeof( uint16_t ) );
     endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ) );
     endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ) );
+    endpoint->fragment_reassembly = reliable_sequence_buffer_create( config->fragment_reassembly_buffer_size, sizeof( struct reliable_fragment_reassembly_data_t ) );
 
     return endpoint;
 }
@@ -366,9 +425,21 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     assert( endpoint->sent_packets );
     assert( endpoint->received_packets );
 
+    int i;
+    for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
+    {
+        struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
+        if ( reassembly_data && reassembly_data->packet_data )
+        {
+            free( reassembly_data->packet_data );
+            reassembly_data->packet_data = NULL;
+        }
+    }
+
     free( endpoint->acks );
     free( endpoint->sent_packets );
     free( endpoint->received_packets );
+    free( endpoint->fragment_reassembly );
 
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
@@ -499,7 +570,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         int num_fragments = ( packet_bytes / endpoint->config.fragment_size ) + ( ( packet_bytes % endpoint->config.fragment_size ) != 0 ? 1 : 0 );
 
-        assert( num_fragments > 0 );
+        assert( num_fragments >= 1 );
         assert( num_fragments <= endpoint->config.max_fragments );
 
         uint8_t * fragment_packet_data = (uint8_t*) malloc( RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size );
@@ -516,7 +587,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             reliable_write_uint8( &p, 1 );
             reliable_write_uint16( &p, sequence );
             reliable_write_uint8( &p, fragment_id );
-            reliable_write_uint8( &p, num_fragments );
+            reliable_write_uint8( &p, num_fragments - 1 );
 
             if ( fragment_id == 0 )
             {
@@ -689,19 +760,51 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     {
         // fragment packet
 
-        printf( "received fragment packet\n" );
+        uint8_t * p = packet_data;
 
-        /*
-        uint8_t fragment_id = reliable_read_uint8( &p );
-        uint8_t num_fragments = reliable_read_uint8( &p );
-        uint16_t fragment_bytes = reliable_read_uint16( &p );
+        if ( packet_bytes < RELIABLE_FRAGMENT_HEADER_BYTES )
+        {
+            // todo: counter. fragment packet too small
+            return;
+        }
 
-        // ...
+        uint8_t prefix_byte = reliable_read_uint8( &p );
+        uint16_t sequence = reliable_read_uint16( &p );
+        int fragment_id = (int) reliable_read_uint8( &p );
+        int num_fragments = ( (int) reliable_read_uint8( &p ) ) + 1;
 
+        (void) prefix_byte;
+        (void) sequence;
         (void) fragment_id;
         (void) num_fragments;
-        (void) fragment_bytes;
-        */
+
+        struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
+        if ( !reassembly_data )
+        {
+            reassembly_data = reliable_sequence_buffer_insert_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
+
+            if ( !reassembly_data )
+            {
+                // todo: counter. stale fragment
+                printf( "stale fragment\n" );
+                return;
+            }
+
+            reassembly_data->sequence = sequence;
+            reassembly_data->ack = 0;
+            reassembly_data->ack_bits = 0;
+            reassembly_data->num_fragments_received = 0;
+            reassembly_data->num_fragments_total = num_fragments;
+            reassembly_data->packet_data = (uint8_t*) malloc( RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size );
+            reassembly_data->packet_bytes = 0;
+            memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
+        }
+
+        printf( "received fragment %d/%d of %d\n", fragment_id, num_fragments, sequence );
+        
+        // todo: validation
+
+        // ...
     }
 }
 
@@ -1173,7 +1276,7 @@ void reliable_test()
 {
     printf( "\n" );
 
-    while ( 1 )
+    //while ( 1 )
     {
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );
