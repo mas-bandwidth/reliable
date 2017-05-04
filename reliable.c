@@ -631,7 +631,9 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
 
     uint8_t prefix_byte = reliable_read_uint8( &p );
 
-    assert( ( prefix_byte & 1 ) == 0 );
+    // todo: now can fail for reasons other than packet too small. update the counter
+    if ( ( prefix_byte & 1 ) != 0 )
+        return -1;
 
     *sequence = reliable_read_uint16( &p );
 
@@ -766,9 +768,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         uint8_t * p = packet_data;
 
+        // ---------------------
+
+        // todo: all this should become function to parse fragment header, if it fails, bad fragment header
+
         if ( packet_bytes < RELIABLE_FRAGMENT_HEADER_BYTES )
         {
-            // todo: counter. fragment packet too small
+            // todo: counter. bad fragment header
             return;
         }
 
@@ -778,9 +784,38 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         int num_fragments = ( (int) reliable_read_uint8( &p ) ) + 1;
 
         (void) prefix_byte;
-        (void) sequence;
-        (void) fragment_id;
-        (void) num_fragments;
+
+        if ( num_fragments > endpoint->config.max_fragments )
+            return;
+
+        if ( fragment_id >= num_fragments )
+            return;
+
+        int fragment_bytes = packet_bytes - RELIABLE_FRAGMENT_HEADER_BYTES;
+
+        uint16_t packet_sequence = 0;
+        uint16_t packet_ack = 0;
+        uint32_t packet_ack_bits = 0;
+
+        if ( fragment_id == 0 )
+        {
+            int packet_header_bytes = reliable_read_packet_header( packet_data + RELIABLE_FRAGMENT_HEADER_BYTES, packet_bytes, &packet_sequence, &packet_ack, &packet_ack_bits );
+            if ( packet_header_bytes < 0 )
+            {
+                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS]++;
+                return;
+            }
+
+            fragment_bytes = packet_bytes - packet_header_bytes - RELIABLE_FRAGMENT_HEADER_BYTES;
+        }
+
+        if ( fragment_bytes > endpoint->config.fragment_size )
+            return;
+
+        if ( fragment_id != num_fragments - 1 && fragment_bytes != endpoint->config.fragment_size )
+            return;
+
+        // -----------------------
 
         struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
         if ( !reassembly_data )
@@ -804,11 +839,25 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
         }
 
-        printf( "received fragment %d/%d of %d\n", fragment_id, num_fragments, sequence );
-        
-        // todo: validation
+        if ( num_fragments != (int) reassembly_data->num_fragments_total )
+            return;
 
-        // ...
+        if ( reassembly_data->fragment_received[fragment_id] )
+            return;
+
+        printf( "received fragment %d/%d of %d\n", fragment_id, num_fragments, sequence );
+
+        reassembly_data->num_fragments_received++;
+        reassembly_data->fragment_received[fragment_id] = 1;
+
+        // todo: actually store the fragment data
+
+        if ( reassembly_data->num_fragments_received == reassembly_data->num_fragments_total )
+        {
+            printf( "*** RECEIVED FRAGMENT ***\n" );
+
+            // todo: process the reassembled packet
+        }
     }
 }
 

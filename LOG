@@ -70,6 +70,14 @@ Thursday May 4th, 2017
 
         Good stuff.
 
+        What's the next step? I think it is bringing across the code that performs validation of fragments when they are received.
+
+    4:12PM - Added code to parse the packet header in fragment 0, so I can know fragment size, plus code to ignore fragments that are BS.
+
+        N
+
+
+
 
 
 Wednesday May 3rd, 2017
