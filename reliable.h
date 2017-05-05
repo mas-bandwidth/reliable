@@ -45,7 +45,8 @@
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED                      1
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED                         2
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE                         3
-#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_SMALL_TO_PROCESS          4
+#define RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_PACKETS                       4
+#define RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS                     5
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_SEND             5
 #define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE          6
 #define RELIABLE_ENDPOINT_NUM_COUNTERS                                      7 
@@ -53,12 +54,20 @@
 #define RELIABLE_MAX_PACKET_HEADER_BYTES 9
 #define RELIABLE_FRAGMENT_HEADER_BYTES 5
 
+#define RELIABLE_LOG_LEVEL_NONE      0
+#define RELIABLE_LOG_LEVEL_INFO      1
+#define RELIABLE_LOG_LEVEL_ERROR     2
+#define RELIABLE_LOG_LEVEL_DEBUG     3
+
+void reliable_log_level( int level );
+
 int reliable_init();
 
 void reliable_term();
 
 struct reliable_config_t
 {
+    char name[256];
     void * context;
     int index;
     int max_packet_size;

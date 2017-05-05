@@ -49,8 +49,8 @@ int random_int( int a, int b )
 
 struct test_context_t
 {
-    struct reliable_endpoint_t * sender;
-    struct reliable_endpoint_t * receiver;
+    struct reliable_endpoint_t * client;
+    struct reliable_endpoint_t * server;
 };
 
 struct test_context_t context;
@@ -64,11 +64,11 @@ void test_transmit_packet_function( void * _context, int index, uint8_t * packet
 
     if ( index == 0 )
     {
-        reliable_endpoint_receive_packet( context->receiver, packet_data, packet_bytes );
+        reliable_endpoint_receive_packet( context->server, packet_data, packet_bytes );
     }
     else if ( index == 1 )
     {
-        reliable_endpoint_receive_packet( context->sender, packet_data, packet_bytes );
+        reliable_endpoint_receive_packet( context->client, packet_data, packet_bytes );
     }
 }
 
@@ -90,35 +90,41 @@ void soak_initialize()
 
     reliable_init();
 
+    reliable_log_level( RELIABLE_LOG_LEVEL_DEBUG );
+
     memset( &context, 0, sizeof( context ) );
     
-    struct reliable_config_t sender_config;
-    struct reliable_config_t receiver_config;
+    struct reliable_config_t client_config;
+    struct reliable_config_t server_config;
 
-    reliable_default_config( &sender_config );
-    reliable_default_config( &receiver_config );
+    client_config.fragment_above = 500;
+    server_config.fragment_above = 500;
 
-    sender_config.context = &context;
-    sender_config.index = 0;
-    sender_config.transmit_packet_function = &test_transmit_packet_function;
-    sender_config.process_packet_function = &test_process_packet_function;
+    reliable_default_config( &client_config );
+    reliable_default_config( &server_config );
 
-    receiver_config.context = &context;
-    receiver_config.index = 1;
-    receiver_config.transmit_packet_function = &test_transmit_packet_function;
-    receiver_config.process_packet_function = &test_process_packet_function;
+    strcpy( client_config.name, "client" );
+    client_config.context = &context;
+    client_config.index = 0;
+    client_config.transmit_packet_function = &test_transmit_packet_function;
+    client_config.process_packet_function = &test_process_packet_function;
 
-    context.sender = reliable_endpoint_create( &sender_config );
-    context.receiver = reliable_endpoint_create( &receiver_config );
+    strcpy( server_config.name, "server" );
+    server_config.context = &context;
+    client_config.index = 1;
+    server_config.transmit_packet_function = &test_transmit_packet_function;
+    server_config.process_packet_function = &test_process_packet_function;
+
+    context.client = reliable_endpoint_create( &client_config );
+    context.server = reliable_endpoint_create( &server_config );
 }
 
 void soak_shutdown()
 {
-    printf( "shutdown\n" );
+    printf( "\nshutdown\n" );
 
-    reliable_endpoint_destroy( context.sender );
-
-    reliable_endpoint_destroy( context.receiver );
+    reliable_endpoint_destroy( context.client );
+    reliable_endpoint_destroy( context.server );
 
     reliable_term();
 }
@@ -130,24 +136,16 @@ void soak_iteration( double time )
     uint8_t packet[16*1024];
     memset( packet, 0, sizeof( packet ) );
 
-    uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+    reliable_endpoint_next_packet_sequence( context.client );
 
-    printf( "packet sent  %d\n", sequence );
+    reliable_endpoint_send_packet( context.client, packet, random_int( 1, sizeof( packet ) ) );
+    reliable_endpoint_send_packet( context.server, packet, random_int( 1, sizeof( packet ) ) );
 
-    reliable_endpoint_send_packet( context.sender, packet, random_int( 1, sizeof( packet ) ) );
-    reliable_endpoint_send_packet( context.receiver, packet, random_int( 1, sizeof( packet ) ) );
+    reliable_endpoint_update( context.client );
+    reliable_endpoint_update( context.server );
 
-    reliable_endpoint_update( context.sender );
-    reliable_endpoint_update( context.receiver );
-
-    int sender_num_acks;
-    uint16_t * sender_acks = reliable_endpoint_get_acks( context.sender, &sender_num_acks );
-    int i;
-    for ( i = 0; i < sender_num_acks; ++i )
-    {
-        printf( "packet acked %d\n", sender_acks[i] );
-    }
-    reliable_endpoint_clear_acks( context.sender );
+    reliable_endpoint_clear_acks( context.client );
+    reliable_endpoint_clear_acks( context.server );
 }
 
 int main( int argc, char ** argv )
@@ -157,11 +155,7 @@ int main( int argc, char ** argv )
     if ( argc == 2 )
         num_iterations = atoi( argv[1] );
 
-    printf( "[soak]\nnum_iterations = %d\n", num_iterations );
-
     soak_initialize();
-
-    printf( "starting\n" );
 
     signal( SIGINT, interrupt_handler );
 

@@ -1,4 +1,53 @@
 
+Friday May 5th, 2017
+====================
+
+    8:02AM - Start work.
+
+        Moving forward with the processing of fragments now. Need to implement logic to actually copy the fragment data in.
+
+        Tricky logic for first, and last fragment (also, they can be the same, single fragment, if fragment_above is smaller than fragment size...)
+
+    8:45AM - Almost working.
+
+        There is a small logic error where the first fragment is getting rejected because it doesn't have the expected size.
+
+        Need to debug and fix the fragment header read function to fix this.
+
+        Also, to help track down, I'm really missing logs, need to bring the debug logs from netcode.io back in, and turn them on in the soak test.
+
+        Once this is done, extend the soak test to create packets with 16 bit sequence in first 2 bytes, then rest of packet as a function of that sequence #, this will allow verification of both packet length and contents, which is necessary to prove that the fragmentation and reassembly is working correctly.
+
+        Once all this is completed, packet fragmentation and reassembly is complete.
+
+    8:47AM - Break for breakfast.
+
+        *** BREAK ***
+
+    9:04AM - Quickly trying to fix fragment 0 processing.
+
+        Just a logic bug on fragment id pointer not being dereferenced.
+
+        Seems to be processing packets now.
+
+    9:09AM - Stop work.
+
+        *** BREAK ***
+
+    12:29PM - Re-adding logging now. I need logs to be able to identify that the system is working correctly.
+
+        Do I need the same log levels? Not really. Just debug is really necessary for now.
+
+        Added a config name per-endpoint, so multiple endpoints can be distinguished in the log.
+
+    1:18PM - Added a bunch of logs. Looking great.
+
+    1:19PM - Break.
+
+        *** BREAK ***
+
+
+
 Thursday May 4th, 2017
 ======================
 
@@ -86,7 +135,15 @@ Thursday May 4th, 2017
 
         *** BREAK ***
 
+    8:49PM - Continuing work on reassembly
 
+        Refactored code to read fragment header etc. into its own function for early out.
+
+        Seems a lot cleaner. Next step is to actually stash the fragment data and process the reassembledpacket.
+
+    9:40PM - Stopping work for today.
+
+        *** STOP WORK ***
 
 
 
