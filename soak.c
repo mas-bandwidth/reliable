@@ -30,6 +30,8 @@
 #include <signal.h>
 #include <inttypes.h>
 
+#define MAX_PACKET_BYTES (16*1024)
+
 static volatile int quit = 0;
 
 void interrupt_handler( int signal )
@@ -72,14 +74,44 @@ void test_transmit_packet_function( void * _context, int index, uint8_t * packet
     }
 }
 
-int test_process_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
 {
-    struct test_context_t * context = (struct test_context_t*) _context;
+    int packet_bytes = ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2;
+    assert( packet_bytes >= 2 );
+    assert( packet_bytes <= MAX_PACKET_BYTES );
+    assert( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
+    printf( "generate packet bytes = %d [%d]\n", packet_bytes, sequence );
+    packet_data[0] = (uint8_t) ( sequence & 0xFF );
+    packet_data[1] = (uint8_t) ( (sequence>>8) & 0xFF );
+    int i;
+    for ( i = 2; i < packet_bytes; ++i )
+    {
+        packet_data[i] = (uint8_t) ( ( (int)i + sequence ) % 256 );
+    }
+    return packet_bytes;
+}
+
+void validate_packet_data( uint8_t * packet_data, int packet_bytes )
+{
+    assert( packet_bytes >= 2 );
+    assert( packet_bytes <= MAX_PACKET_BYTES );
+    uint16_t sequence = 0;
+    sequence |= (uint16_t) packet_data[0];
+    sequence |= ( (uint16_t) packet_data[1] ) << 8;
+    printf( "verify packet_bytes = %d [%d]\n", packet_bytes, sequence );
+    assert( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
+}
+
+int test_process_packet_function( void * context, int index, uint8_t * packet_data, int packet_bytes )
+{
+    assert( packet_data );
+    assert( packet_bytes > 0 );
+    assert( packet_bytes <= MAX_PACKET_BYTES );
 
     (void) context;
     (void) index;
-    (void) packet_data;
-    (void) packet_bytes;
+
+    validate_packet_data( packet_data, packet_bytes );
 
     return 1;
 }
@@ -121,7 +153,7 @@ void soak_initialize()
 
 void soak_shutdown()
 {
-    printf( "\nshutdown\n" );
+    printf( "shutdown\n" );
 
     reliable_endpoint_destroy( context.client );
     reliable_endpoint_destroy( context.server );
@@ -133,13 +165,18 @@ void soak_iteration( double time )
 {
     (void) time;
 
-    uint8_t packet[16*1024];
-    memset( packet, 0, sizeof( packet ) );
+    uint8_t packet_data[MAX_PACKET_BYTES];
+    memset( packet_data, 0, MAX_PACKET_BYTES );
+    int packet_bytes;
+    uint16_t sequence;
 
-    reliable_endpoint_next_packet_sequence( context.client );
+    sequence = reliable_endpoint_next_packet_sequence( context.client );
+    packet_bytes = generate_packet_data( sequence, packet_data );
+    reliable_endpoint_send_packet( context.client, packet_data, packet_bytes );
 
-    reliable_endpoint_send_packet( context.client, packet, random_int( 1, sizeof( packet ) ) );
-    reliable_endpoint_send_packet( context.server, packet, random_int( 1, sizeof( packet ) ) );
+    sequence = reliable_endpoint_next_packet_sequence( context.server );
+    packet_bytes = generate_packet_data( sequence, packet_data );
+    reliable_endpoint_send_packet( context.server, packet_data, packet_bytes );
 
     reliable_endpoint_update( context.client );
     reliable_endpoint_update( context.server );

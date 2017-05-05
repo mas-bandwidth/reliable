@@ -576,10 +576,12 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     if ( packet_bytes > endpoint->config.max_packet_size )
     {
-        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] packet too large to send. packet is %d bytes, maximum is %d\n", endpoint->config.name, packet_bytes, endpoint->config.max_packet_size );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to send. packet is %d bytes, maximum is %d\n", endpoint->config.name, packet_bytes, endpoint->config.max_packet_size );
         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_SEND]++;
         return;
     }
+
+    printf( ">>> packet size = %d bytes\n", packet_bytes );
 
     uint16_t sequence = endpoint->sequence++;
     uint16_t ack;
@@ -587,7 +589,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     reliable_sequence_buffer_generate_ack_bits( endpoint->received_packets, &ack, &ack_bits );
 
-    reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d (%d bytes)\n", endpoint->config.name, sequence, packet_bytes );
+    reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] sending packet %d\n", endpoint->config.name, sequence );
 
     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
@@ -670,10 +672,11 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
 }
 
-int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
+int reliable_read_packet_header( char * name, uint8_t * packet_data, int packet_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
 {
     if ( packet_bytes < 3 )
     {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too small for packet header (1)\n", name );
         return -1;
     }
 
@@ -682,7 +685,10 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
     uint8_t prefix_byte = reliable_read_uint8( &p );
 
     if ( ( prefix_byte & 1 ) != 0 )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] prefix byte does not indicate a regular packet\n", name );
         return -1;
+    }
 
     *sequence = reliable_read_uint16( &p );
 
@@ -690,6 +696,7 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
     {
         if ( packet_bytes < 3 + 1 )
         {
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too small for packet header (2)\n", name );
             return -1;
         }
         uint8_t sequence_difference = reliable_read_uint8( &p );
@@ -699,6 +706,7 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
     {
         if ( packet_bytes < 3 + 2 )
         {
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too small for packet header (3)\n", name );
             return -1;
         }
         *ack = reliable_read_uint16( &p );
@@ -715,6 +723,7 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
     }
     if ( packet_bytes < ( p - packet_data ) + expected_bytes )
     {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too small for packet header (4)\n", name );
         return -1;
     }
 
@@ -747,13 +756,11 @@ int reliable_read_packet_header( uint8_t * packet_data, int packet_bytes, uint16
     return p - packet_data;
 }
 
-int reliable_read_fragment_header( uint8_t * packet_data, int packet_bytes, int max_fragments, int fragment_size, int * fragment_id, int * num_fragments, int * fragment_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
+int reliable_read_fragment_header( char * name, uint8_t * packet_data, int packet_bytes, int max_fragments, int fragment_size, int * fragment_id, int * num_fragments, int * fragment_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
 {
-    // todo: need to clean up logs here
-    
     if ( packet_bytes < RELIABLE_FRAGMENT_HEADER_BYTES )
     {
-        printf( "packet is too small to read fragment header\n" );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet is too small to read fragment header\n", name );
         return -1;
     }
 
@@ -762,7 +769,7 @@ int reliable_read_fragment_header( uint8_t * packet_data, int packet_bytes, int 
     uint8_t prefix_byte =reliable_read_uint8( &p );
     if ( prefix_byte != 1 )
     {
-        printf( "prefix byte is not a fragment\n" );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] prefix byte is not a fragment\n", name );
         return -1;
     }
     
@@ -772,13 +779,13 @@ int reliable_read_fragment_header( uint8_t * packet_data, int packet_bytes, int 
 
     if ( *num_fragments > max_fragments )
     {
-        printf( "num fragments %d outside of range of max fragments %d\n", *num_fragments, max_fragments );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] num fragments %d outside of range of max fragments %d\n", name, *num_fragments, max_fragments );
         return -1;
     }
 
     if ( *fragment_id >= *num_fragments )
     {
-        printf( "fragment id %d outside of range of num fragments %d\n", *fragment_id, *num_fragments );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] fragment id %d outside of range of num fragments %d\n", name, *fragment_id, *num_fragments );
         return -1;
     }
 
@@ -790,17 +797,17 @@ int reliable_read_fragment_header( uint8_t * packet_data, int packet_bytes, int 
 
     if ( *fragment_id == 0 )
     {
-        int packet_header_bytes = reliable_read_packet_header( packet_data + RELIABLE_FRAGMENT_HEADER_BYTES, packet_bytes, &packet_sequence, &packet_ack, &packet_ack_bits );
+        int packet_header_bytes = reliable_read_packet_header( name, packet_data + RELIABLE_FRAGMENT_HEADER_BYTES, packet_bytes, &packet_sequence, &packet_ack, &packet_ack_bits );
 
         if ( packet_header_bytes < 0 )
         {
-            printf( "bad packet header in fragment 0\n" );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] bad packet header in fragment\n", name );
             return -1;
         }
 
         if ( packet_sequence != *sequence )
         {
-            printf( "bad packet sequence in fragment\n" );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] bad packet sequence in fragment. expected %d, got %d\n", name, *sequence, packet_sequence );
             return -1;
         }
 
@@ -812,13 +819,13 @@ int reliable_read_fragment_header( uint8_t * packet_data, int packet_bytes, int 
 
     if ( *fragment_bytes > fragment_size )
     {
-        printf( "fragment bytes %d > fragment size %d\n", *fragment_bytes, fragment_size );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] fragment bytes %d > fragment size %d\n", name, *fragment_bytes, fragment_size );
         return - 1;
     }
 
     if ( *fragment_id != *num_fragments - 1 && *fragment_bytes != fragment_size )
     {
-        printf( "fragment %d is %d bytes, which is not the expected fragment size %d\n", *fragment_id, *fragment_bytes, fragment_size );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] fragment %d is %d bytes, which is not the expected fragment size %d\n", name, *fragment_id, *fragment_bytes, fragment_size );
         return -1;
     }
 
@@ -846,6 +853,11 @@ void reliable_store_fragment_data( struct reliable_fragment_reassembly_data_t * 
         memcpy( reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES - reassembly_data->packet_header_bytes, packet_header, reassembly_data->packet_header_bytes );
     }
 
+    if ( fragment_id == reassembly_data->num_fragments_total - 1 )
+    {
+        reassembly_data->packet_bytes = ( reassembly_data->num_fragments_total - 1 ) * fragment_size + fragment_bytes;
+    }
+
     memcpy( reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES + fragment_id * fragment_size, fragment_data, fragment_bytes );
 }
 
@@ -857,7 +869,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
     if ( packet_bytes > endpoint->config.max_packet_size )
     {
-        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] packet too large to receive. packet is %d bytes, maximum is %d\n", endpoint->config.name, packet_bytes, endpoint->config.max_packet_size );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to receive. packet is %d bytes, maximum is %d\n", endpoint->config.name, packet_bytes, endpoint->config.max_packet_size );
         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE]++;
         return;
     }
@@ -874,15 +886,15 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         uint16_t ack;
         uint32_t ack_bits;
 
-        int packet_header_bytes = reliable_read_packet_header( packet_data, packet_bytes, &sequence, &ack, &ack_bits );
+        int packet_header_bytes = reliable_read_packet_header( endpoint->config.name, packet_data, packet_bytes, &sequence, &ack, &ack_bits );
         if ( packet_header_bytes < 0 )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid packet. could not read packet header\n", endpoint->config.name );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid packet. could not read packet header\n", endpoint->config.name );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_PACKETS]++;
             return;
         }
 
-        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] processing packet %d\n", endpoint->config.name, sequence );
+        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] processing packet %d\n", endpoint->config.name, sequence );
 
         // todo: shouldn't process a stale packet. check here first before calling process and reject if stale!
 
@@ -910,7 +922,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
                     if ( sent_packet_data && !sent_packet_data->acked )
                     {
-                        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] packet %d acked\n", endpoint->config.name, sequence );
+                        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] acked packet %d\n", endpoint->config.name, sequence );
                         if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
                         {
                             endpoint->acks[endpoint->num_acks++] = sequence;
@@ -924,7 +936,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         }
         else
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet failed\n", endpoint->config.name );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] process packet failed\n", endpoint->config.name );
         }
     }
     else
@@ -939,12 +951,12 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         uint16_t ack;
         uint32_t ack_bits;
 
-        int fragment_header_bytes = reliable_read_fragment_header( packet_data, packet_bytes, endpoint->config.max_fragments, endpoint->config.fragment_size,
+        int fragment_header_bytes = reliable_read_fragment_header( endpoint->config.name, packet_data, packet_bytes, endpoint->config.max_fragments, endpoint->config.fragment_size,
                                                                    &fragment_id, &num_fragments, &fragment_bytes, &sequence, &ack, &ack_bits );
 
         if ( fragment_header_bytes < 0 )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. could not read fragment header\n", endpoint->config.name );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. could not read fragment header\n", endpoint->config.name );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
             return;
         }
@@ -957,7 +969,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             if ( !reassembly_data )
             {
-                reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. could not insert in reassembly buffer (stale)\n", endpoint->config.name );
+                reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. could not insert in reassembly buffer (stale)\n", endpoint->config.name );
                 endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
                 return;
             }
@@ -974,14 +986,14 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         if ( num_fragments != (int) reassembly_data->num_fragments_total )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. fragment count mismatch. expected %d, got %d\n", endpoint->config.name, (int) reassembly_data->num_fragments_total, num_fragments );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. fragment count mismatch. expected %d, got %d\n", endpoint->config.name, (int) reassembly_data->num_fragments_total, num_fragments );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
             return;
         }
 
         if ( reassembly_data->fragment_received[fragment_id] )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring fragment %d of packet %d. fragment already received\n", endpoint->config.name, fragment_id, sequence );
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring fragment %d of packet %d. fragment already received\n", endpoint->config.name, fragment_id, sequence );
             return;
         }
 
@@ -1212,7 +1224,7 @@ static void test_packet_header()
 
     check( bytes_written == RELIABLE_MAX_PACKET_HEADER_BYTES );
 
-    int bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+    int bytes_read = reliable_read_packet_header( "test_packet_header", packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
 
     check( bytes_read == bytes_written );
 
@@ -1230,7 +1242,7 @@ static void test_packet_header()
 
     check( bytes_written == 1 + 2 + 2 + 3 );
 
-    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+    bytes_read = reliable_read_packet_header( "test_packet_header", packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
 
     check( bytes_read == bytes_written );
 
@@ -1248,7 +1260,7 @@ static void test_packet_header()
 
     check( bytes_written == 1 + 2 + 1 + 1 );
 
-    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+    bytes_read = reliable_read_packet_header( "test_packet_header", packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
 
     check( bytes_read == bytes_written );
 
@@ -1266,7 +1278,7 @@ static void test_packet_header()
 
     check( bytes_written == 1 + 2 + 1 );
 
-    bytes_read = reliable_read_packet_header( packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
+    bytes_read = reliable_read_packet_header( "test_packet_header", packet_data, bytes_written, &read_sequence, &read_ack, &read_ack_bits );
 
     check( bytes_read == bytes_written );
 

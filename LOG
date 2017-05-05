@@ -42,9 +42,23 @@ Friday May 5th, 2017
 
     1:18PM - Added a bunch of logs. Looking great.
 
-    1:19PM - Break.
+        Continuing with logs. Trying to get everything in under the logs rather than printf.
 
-        *** BREAK ***
+    1:35PM - Stop work.
+
+        *** LUNCH ***
+
+    2:07PM - Back at work.
+
+        Continuing with logs.
+
+    2:11PM - Logs completed.
+
+        Now I need to hook up the packet size, and the packet contents so they can be verified.
+
+        Adding a function to generate a packet, and another to verify a packet.
+
+        
 
 
 
