@@ -134,7 +134,23 @@ Friday May 5th, 2017
 
     9:59PM - Time to work on the unit test extension.
 
-        ...
+        Added test and made sure it covers both regular and fragmented packets.
+
+        This is enough testing for the fragmentation and reassembly. It works.
+
+        The remaining work is as follows:
+
+            1. Implemnet the RTT and packet loss estimates
+
+            2. Implement the congestion avoidance notification
+
+        Study the newer congestion avoidance technique to come up with an implementation.
+
+        Don't discard packets when congested, but flag congestion up to the user layer.
+
+    10:38PM - Stopping work for tonight.
+
+        *** STOP WORK ***
 
 
 
