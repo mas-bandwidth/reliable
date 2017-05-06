@@ -1473,14 +1473,99 @@ static void test_acks_packet_loss()
     reliable_endpoint_destroy( context.receiver );
 }
 
-void test_regular_packets()
+#define TEST_MAX_PACKET_BYTES (4*1024)
+
+static int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
 {
-    // ...
+    int packet_bytes = ( ( (int)sequence * 1023 ) % ( TEST_MAX_PACKET_BYTES - 2 ) ) + 2;
+    assert( packet_bytes >= 2 );
+    assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    packet_data[0] = (uint8_t) ( sequence & 0xFF );
+    packet_data[1] = (uint8_t) ( (sequence>>8) & 0xFF );
+    int i;
+    for ( i = 2; i < packet_bytes; ++i )
+    {
+        packet_data[i] = (uint8_t) ( ( (int)i + sequence ) % 256 );
+    }
+    return packet_bytes;
 }
 
-void test_fragmented_packets()
+static void validate_packet_data( uint8_t * packet_data, int packet_bytes )
 {
-    // ...
+    assert( packet_bytes >= 2 );
+    assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    uint16_t sequence = 0;
+    sequence |= (uint16_t) packet_data[0];
+    sequence |= ( (uint16_t) packet_data[1] ) << 8;
+    check( packet_bytes == ( ( (int)sequence * 1023 ) % ( TEST_MAX_PACKET_BYTES - 2 ) ) + 2 );
+    int i;
+    for ( i = 2; i < packet_bytes; ++i )
+    {
+        check( packet_data[i] == (uint8_t) ( ( (int)i + sequence ) % 256 ) );
+    }
+}
+
+static int test_process_packet_function_validate( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    assert( packet_data );
+    assert( packet_bytes > 0 );
+    assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+
+    (void) context;
+    (void) index;
+    (void) sequence;
+
+    validate_packet_data( packet_data, packet_bytes );
+
+    return 1;
+}
+
+void test_packets()
+{
+    struct test_context_t context;
+    memset( &context, 0, sizeof( context ) );
+    
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    sender_config.fragment_above = 500;
+    receiver_config.fragment_above = 500;
+
+    strcpy( sender_config.name, "sender" );
+    sender_config.context = &context;
+    sender_config.index = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function_validate;
+
+    strcpy( receiver_config.name, "receiver" );
+    receiver_config.context = &context;
+    receiver_config.index = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function_validate;
+
+    context.sender = reliable_endpoint_create( &sender_config );
+    context.receiver = reliable_endpoint_create( &receiver_config );
+
+    int i;
+    for ( i = 0; i < 16; ++i )
+    {
+        uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        int packet_bytes = generate_packet_data( sequence, packet_data );
+        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+
+        reliable_endpoint_update( context.sender );
+        reliable_endpoint_update( context.receiver );
+
+        reliable_endpoint_clear_acks( context.sender );
+        reliable_endpoint_clear_acks( context.receiver );
+    }
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
 }
 
 #define RUN_TEST( test_function )                                           \
@@ -1503,8 +1588,7 @@ void reliable_test()
         RUN_TEST( test_packet_header );
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
-        RUN_TEST( test_regular_packets );
-        RUN_TEST( test_fragmented_packets );
+        RUN_TEST( test_packets );
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );

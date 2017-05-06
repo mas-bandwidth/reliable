@@ -159,11 +159,11 @@ void soak_initialize()
     struct reliable_config_t client_config;
     struct reliable_config_t server_config;
 
-    client_config.fragment_above = 500;
-    server_config.fragment_above = 500;
-
     reliable_default_config( &client_config );
     reliable_default_config( &server_config );
+
+    client_config.fragment_above = 500;
+    server_config.fragment_above = 500;
 
     strcpy( client_config.name, "client" );
     client_config.context = &context;
