@@ -175,17 +175,22 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
     }
 }
 
+int reliable_sequence_buffer_test_insert( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    return reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) ? 0 : 1;
+}
+
 void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
 {
     assert( sequence_buffer );
+    if ( reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) )
+    {
+        return NULL;
+    }
     if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
     {
         reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, NULL );
         sequence_buffer->sequence = sequence + 1;
-    }
-    else if ( reliable_sequence_less_than( sequence, sequence_buffer->sequence - sequence_buffer->num_entries ) )
-    {
-        return NULL;
     }
     int index = sequence % sequence_buffer->num_entries;
     sequence_buffer->entry_sequence[index] = sequence;
@@ -581,8 +586,6 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
         return;
     }
 
-    printf( ">>> packet size = %d bytes\n", packet_bytes );
-
     uint16_t sequence = endpoint->sequence++;
     uint16_t ack;
     uint32_t ack_bits;
@@ -834,14 +837,6 @@ int reliable_read_fragment_header( char * name, uint8_t * packet_data, int packe
 
 void reliable_store_fragment_data( struct reliable_fragment_reassembly_data_t * reassembly_data, uint16_t sequence, uint16_t ack, uint32_t ack_bits, int fragment_id, int fragment_size, uint8_t * fragment_data, int fragment_bytes )
 {
-    (void) reassembly_data;
-    (void) sequence;
-    (void) ack;
-    (void) ack_bits;
-    (void) fragment_id;
-    (void) fragment_data;
-    (void) fragment_bytes;
-
     if ( fragment_id == 0 )
     {
         uint8_t packet_header[RELIABLE_MAX_PACKET_HEADER_BYTES];
@@ -851,6 +846,9 @@ void reliable_store_fragment_data( struct reliable_fragment_reassembly_data_t * 
         reassembly_data->packet_header_bytes = reliable_write_packet_header( packet_header, sequence, ack, ack_bits );
 
         memcpy( reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES - reassembly_data->packet_header_bytes, packet_header, reassembly_data->packet_header_bytes );
+
+        fragment_data += reassembly_data->packet_header_bytes;
+        fragment_bytes -= reassembly_data->packet_header_bytes;
     }
 
     if ( fragment_id == reassembly_data->num_fragments_total - 1 )
@@ -894,24 +892,24 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
-        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] processing packet %d\n", endpoint->config.name, sequence );
+        if ( !reliable_sequence_buffer_test_insert( endpoint->received_packets, sequence ) )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring stale packet %d\n", endpoint->config.name, sequence );
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
+            return;
+        }
 
-        // todo: shouldn't process a stale packet. check here first before calling process and reject if stale!
+        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] processing packet %d\n", endpoint->config.name, sequence );
 
         if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
         {
             reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet %d successful\n", endpoint->config.name, sequence );
 
             struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
-            if ( received_packet_data )
-            {
-                // todo: fill received packet data (if any is needed)
-            }
-            else
-            {
-                reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring stale packet %d\n", endpoint->config.name, sequence );
-                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE]++;
-            }
+
+            assert( received_packet_data );
+
+            // todo: fill received packet data (if any is needed)
 
             int i;
             for ( i = 0; i < 32; ++i )
@@ -1008,7 +1006,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         {
             reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] completed reassembly of packet %d\n", endpoint->config.name, sequence );
 
-            reliable_endpoint_receive_packet( endpoint, reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES - reassembly_data->packet_header_bytes, reassembly_data->packet_bytes + reassembly_data->packet_header_bytes );
+            reliable_endpoint_receive_packet( endpoint, reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES - reassembly_data->packet_header_bytes, reassembly_data->packet_header_bytes + reassembly_data->packet_bytes );
 
             reliable_sequence_buffer_remove_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
         }

@@ -79,8 +79,6 @@ int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
     int packet_bytes = ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2;
     assert( packet_bytes >= 2 );
     assert( packet_bytes <= MAX_PACKET_BYTES );
-    assert( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
-    printf( "generate packet bytes = %d [%d]\n", packet_bytes, sequence );
     packet_data[0] = (uint8_t) ( sequence & 0xFF );
     packet_data[1] = (uint8_t) ( (sequence>>8) & 0xFF );
     int i;
@@ -91,15 +89,44 @@ int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
     return packet_bytes;
 }
 
-void validate_packet_data( uint8_t * packet_data, int packet_bytes )
+static void check_handler( char * condition, 
+                           char * function,
+                           char * file,
+                           int line )
+{
+    printf( "check failed: ( %s ), function %s, file %s, line %d\n", condition, function, file, line );
+#ifndef NDEBUG
+    #if defined( __GNUC__ )
+        __builtin_trap();
+    #elif defined( _MSC_VER )
+        __debugbreak();
+    #endif
+#endif
+    exit( 1 );
+}
+
+#define check( condition )                                                                      \
+do                                                                                              \
+{                                                                                               \
+    if ( !(condition) )                                                                         \
+    {                                                                                           \
+        check_handler( #condition, (char*) __FUNCTION__, (char*) __FILE__, __LINE__ );          \
+    }                                                                                           \
+} while(0)
+
+void check_packet_data( uint8_t * packet_data, int packet_bytes )
 {
     assert( packet_bytes >= 2 );
     assert( packet_bytes <= MAX_PACKET_BYTES );
     uint16_t sequence = 0;
     sequence |= (uint16_t) packet_data[0];
     sequence |= ( (uint16_t) packet_data[1] ) << 8;
-    printf( "verify packet_bytes = %d [%d]\n", packet_bytes, sequence );
-    assert( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
+    check( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
+    int i;
+    for ( i = 2; i < packet_bytes; ++i )
+    {
+        check( packet_data[i] == (uint8_t) ( ( (int)i + sequence ) % 256 ) );
+    }
 }
 
 int test_process_packet_function( void * context, int index, uint8_t * packet_data, int packet_bytes )
@@ -111,7 +138,7 @@ int test_process_packet_function( void * context, int index, uint8_t * packet_da
     (void) context;
     (void) index;
 
-    validate_packet_data( packet_data, packet_bytes );
+    check_packet_data( packet_data, packet_bytes );
 
     return 1;
 }

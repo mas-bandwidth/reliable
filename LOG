@@ -58,7 +58,54 @@ Friday May 5th, 2017
 
         Adding a function to generate a packet, and another to verify a packet.
 
-        
+    2:53PM - Finished adding code to generate packet size and contents plus validate fn.
+
+        Validation hits. It seems to be because the first two bytes of the packet aren't valid, for fragmented and reassembled packets.
+
+        Something is definitely chewing up the packet contents for fragmented and reassembled packets. Need to debug to see what's going on.
+
+    2:54PM - Stop work.
+
+         *** BREAK ***
+
+    4:23PM - Debugging fragment data.
+
+        Found it. Needed to adjust fragment 0 to skip packet header data.
+
+        Soak test now runs flawlessly. The sequence # and length of packet is correct, next step is to verify packet contents as well.
+
+        Doing this now.
+
+    4:36PM - Done.
+
+        Now I have some small cleanup to do:
+
+            1. Don't call process packet if the sequence # is stale, need to add supporting function to check if insert would fail.
+
+            2. Add a unit test to verify that regular packets get through (derive from soak test)
+
+            3. Add a unit test to verify fragmented packets get through (derive from soak test)
+
+            4. Extend soak test with a check like macro, so it validates in release build.
+
+            5. Run valgrind over soak test, make sure no memory leaks have snuck in.
+
+            6. Implement a fuzz test, creates an endpoint and feeds it truly random packet data forever. Make sure it can handle it without crashing. eg. "pm fuzz".
+
+    4:42PM - Adding check macro to soak test.        
+
+        Done.
+
+        Ran valgrind. No leaks.
+
+        Added "reliable_sequence_buffer_test_insert" to check if sequence # is stale before calling process packet fn ptr.
+
+        Now I want to implement the fuzz test. This will be interesting. Setup an endpoint and pump it, and try to feed it random crap, goal is for it to not crash.
+
+        Implementing fuzz.c now...
+
+        Implemented. Found an assert. Fuzz test passes now.
+
 
 
 

@@ -25,6 +25,9 @@ project "test"
 project "soak"
     files { "soak.c", "reliable.c" }
 
+project "fuzz"
+    files { "fuzz.c", "reliable.c" }
+
 if os.is "windows" then
 
     -- Windows
@@ -65,6 +68,18 @@ else
             os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 soak" == 0 then
                 os.execute "./bin/soak"
+            end
+        end
+    }
+
+    newaction
+    {
+        trigger     = "fuzz",
+        description = "Build and run fuzz test",
+        execute = function ()
+            os.execute "test ! -e Makefile && premake5 gmake"
+            if os.execute "make -j32 fuzz" == 0 then
+                os.execute "./bin/fuzz"
             end
         end
     }
