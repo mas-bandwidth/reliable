@@ -106,6 +106,32 @@ Friday May 5th, 2017
 
         Implemented. Found an assert. Fuzz test passes now.
 
+    5:12PM - What is left to do?
+
+        Add unit test for regular packet, fragmented packet w. checks for packet length and content.
+
+        That's it. Taking a break for the moment. Will get to this later today.
+
+        After this, all that remains is to implement the QoS.
+
+    5:17PM - Taking a break.
+
+        *** BREAK ***
+
+    6:55PM - Finishing up unit tests before dinner.
+
+        Extended function pointers to transmit and process packet to take uint16_t sequence #. 
+
+        Reasoning is that if the processing packet function needs the sequence #, this is the only way it's going to get it.
+
+        For example, yojimbo will want to know the sequence # for the message system when processing a packet.
+
+        It's probably not needed on transmit, but for consistency, it was added there. Plus might be good for logging.
+
+    7:04PM - Next task is to extend unit test to generate a packet and verify it. Do this for existing tests, before extending to fragmented packets.
+
+        *** BREAK ***
+
 
 
 

@@ -610,7 +610,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         memcpy( transmit_packet_data + packet_header_bytes, packet_data, packet_bytes );
 
-        endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, transmit_packet_data, packet_header_bytes + packet_bytes );
+        endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, transmit_packet_data, packet_header_bytes + packet_bytes );
 
         free( transmit_packet_data );
     }
@@ -666,7 +666,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
             int fragment_packet_bytes = p - fragment_packet_data;
 
-            endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, fragment_packet_data, fragment_packet_bytes );
+            endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, fragment_packet_data, fragment_packet_bytes );
         }
 
         free( fragment_packet_data );
@@ -901,7 +901,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] processing packet %d\n", endpoint->config.name, sequence );
 
-        if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
+        if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, sequence, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
         {
             reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet %d successful\n", endpoint->config.name, sequence );
 
@@ -910,6 +910,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             assert( received_packet_data );
 
             // todo: fill received packet data (if any is needed)
+            (void) received_packet_data;
 
             int i;
             for ( i = 0; i < 32; ++i )
@@ -1292,8 +1293,10 @@ struct test_context_t
     struct reliable_endpoint_t * receiver;
 };
 
-static void test_transmit_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+static void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
+    (void) sequence;
+
     struct test_context_t * context = (struct test_context_t*) _context;
 
     if ( context->drop )
@@ -1309,12 +1312,13 @@ static void test_transmit_packet_function( void * _context, int index, uint8_t *
     }
 }
 
-static int test_process_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+static int test_process_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     struct test_context_t * context = (struct test_context_t*) _context;
 
     (void) context;
     (void) index;
+    (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
 
@@ -1469,6 +1473,16 @@ static void test_acks_packet_loss()
     reliable_endpoint_destroy( context.receiver );
 }
 
+void test_regular_packets()
+{
+    // ...
+}
+
+void test_fragmented_packets()
+{
+    // ...
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -1489,6 +1503,8 @@ void reliable_test()
         RUN_TEST( test_packet_header );
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
+        RUN_TEST( test_regular_packets );
+        RUN_TEST( test_fragmented_packets );
     }
 
     printf( "\n*** ALL TESTS PASSED ***\n\n" );

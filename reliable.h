@@ -78,8 +78,8 @@ struct reliable_config_t
     int sent_packets_buffer_size;
     int received_packets_buffer_size;
     int fragment_reassembly_buffer_size;
-    void (*transmit_packet_function)(void*,int,uint8_t*,int);
-    int (*process_packet_function)(void*,int,uint8_t*,int);
+    void (*transmit_packet_function)(void*,int,uint16_t,uint8_t*,int);
+    int (*process_packet_function)(void*,int,uint16_t,uint8_t*,int);
 };
 
 void reliable_default_config( struct reliable_config_t * config );

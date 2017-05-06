@@ -57,8 +57,10 @@ struct test_context_t
 
 struct test_context_t context;
 
-void test_transmit_packet_function( void * _context, int index, uint8_t * packet_data, int packet_bytes )
+void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
+    (void) sequence;
+
     struct test_context_t * context = (struct test_context_t*) _context;
 
     if ( random_int(0,100) < 5 )
@@ -129,7 +131,7 @@ void check_packet_data( uint8_t * packet_data, int packet_bytes )
     }
 }
 
-int test_process_packet_function( void * context, int index, uint8_t * packet_data, int packet_bytes )
+int test_process_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     assert( packet_data );
     assert( packet_bytes > 0 );
@@ -137,6 +139,7 @@ int test_process_packet_function( void * context, int index, uint8_t * packet_da
 
     (void) context;
     (void) index;
+    (void) sequence;
 
     check_packet_data( packet_data, packet_bytes );
 
