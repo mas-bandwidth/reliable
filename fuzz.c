@@ -51,18 +51,20 @@ int random_int( int a, int b )
 
 struct reliable_endpoint_t * endpoint;
 
-void test_transmit_packet_function( void * context, int index, uint8_t * packet_data, int packet_bytes )
+void test_transmit_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
     (void) index;
+    (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
 }
 
-int test_process_packet_function( void * context, int index, uint8_t * packet_data, int packet_bytes )
+int test_process_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
     (void) index;
+    (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
     return 1;

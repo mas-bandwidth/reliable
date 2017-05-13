@@ -1,4 +1,99 @@
 
+Friday May 12th 2017
+====================
+
+    10:18PM - What are the next tasks?
+
+        I need to get an RTT estimate working.
+
+        Packet loss estimate.
+
+        Jitter estimate.
+
+        Start here, then once these are working, research the congestion avoidance algorithm to implement.
+
+        To implement packet loss estimate I simply need to check packets at 50% in the past in the send packet sequence buffer (eg. walk old to new).
+
+        To implement RTT estimate, I need to track the time of send, and compare the time when the packet is acked to get the instantaneous RTT est, then smooth this.
+
+        How to best implement the jitter estimate? I don't think it's possible, because it requires a timestamp in each packet, so jitter estimate must be *above* reliable.io.
+
+        Alternatively, packet send rate is assumed to be constant, then we can have a jitter estimate, but this can't be required that the packet send rate is fixed at this level, so I think we might want to leave jitter buffer to a higher level API (eg. one that can include timestamps per-packet).
+
+        Stuff to read about BBR:
+
+            http://queue.acm.org/detail.cfm?id=3022184
+
+            https://www.ietf.org/proceedings/97/slides/slides-97-iccrg-bbr-congestion-control-02.pdf
+
+            https://www.ietf.org/proceedings/98/slides/slides-98-iccrg-an-update-on-bbr-congestion-control-00.pdf
+
+            https://blog.acolyer.org/2017/03/31/bbr-congestion-based-congestion-control/        <---- this one is really good.
+
+            https://www.ietf.org/proceedings/98/slides/slides-98-iccrg-an-update-on-bbr-congestion-control-00.pdf
+
+            https://github.com/google/bbr
+
+            https://lwn.net/Articles/701165/
+
+            http://www.thequilt.net/wp-content/uploads/BBR-TCP-Opportunities.pdf
+
+            http://blog.cerowrt.org/post/bbrs_basic_beauty/
+
+            https://news.ycombinator.com/item?id=13087574
+
+            https://patchwork.ozlabs.org/patch/671069/
+
+            https://blog.jie.today/2016/12/09/using-bbr-congestion-control-to-improve-connection-speed/
+
+            http://www.dslreports.com/forum/r31197838-Google-s-BBR-Congestion-Control-Algorithm
+
+            http://news.softpedia.com/news/google-creates-new-algorithm-for-handling-tcp-traffic-congestion-control-508398.shtml
+
+            https://en.wikipedia.org/wiki/TCP_congestion_control
+
+            http://etherealmind.com/research-bbr-congestion-based-congestion-control-acm-queue/
+
+        Hmmm. I could derive jitter from the ack time variance... but this would tend to overestimate it, I think? eg. measure jitter in both directions?
+
+        Some good stuff on TCP RTT estimates:
+
+            https://www.quora.com/How-does-TCP-round-trip-time-RTT-estimation-work-How-different-is-the-implementation-across-operating-systems
+
+            https://networkengineering.stackexchange.com/questions/10587/initial-estimated-round-trip-time-in-the-rtt-formula
+
+            https://en.wikipedia.org/wiki/Round-trip_delay_time
+
+            https://www.usenix.org/legacy/publications/library/proceedings/mobisys03/tech/full_papers/dunkels/dunkels_html/node18.html
+
+            http://web.opalsoft.net/qos/default.php?p=tcp-10
+
+            http://www.mathcs.emory.edu/~cheung/Courses/455/Syllabus/7-transport/timeout.html
+
+            http://blog.catchpoint.com/2014/04/29/understanding-rtt-impact-on-tcp-retransmissions/
+
+            https://tools.ietf.org/html/rfc6323
+
+        More on jitter:
+
+            https://www.slac.stanford.edu/comp/net/wan-mon/oneway-jitter.html
+
+            https://tools.ietf.org/html/rfc3393
+
+            http://www.cyberjournals.com/Papers/Aug2011/01.pdf
+
+            http://link.springer.com/chapter/10.1007/978-3-642-13861-4_15
+
+            https://www.researchgate.net/publication/224645037_Available_Bandwidth_Estimation_via_One-Way_Delay_Jitter_and_Queuing_Delay_Propagation_Model
+
+    11:37PM - Stop research for tonight. Will continue reading through these papers and links tomorrow.
+
+        Branching off yojimbo to a private branch where I can do some work for Remedy. Probably best to bring across the client/server interface first, because much of the lower-level implmentations are complicated and tied together.
+
+        Starting with this: "yojimbo-private" in my branch for now, until I am comfortable to go public with this work.
+
+
+
 Friday May 5th, 2017
 ====================
 
