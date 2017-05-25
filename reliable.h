@@ -55,12 +55,16 @@
 #define RELIABLE_FRAGMENT_HEADER_BYTES 5
 
 #define RELIABLE_LOG_LEVEL_NONE     0
-#define RELIABLE_LOG_LEVEL_INFO     1
-#define RELIABLE_LOG_LEVEL_ERROR    2
+#define RELIABLE_LOG_LEVEL_ERROR    1
+#define RELIABLE_LOG_LEVEL_INFO     2
 #define RELIABLE_LOG_LEVEL_DEBUG    3
 
 #define RELIABLE_OK         1
 #define RELIABLE_ERROR      0
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void reliable_log_level( int level );
 
@@ -101,8 +105,14 @@ uint16_t * reliable_endpoint_get_acks( struct reliable_endpoint_t * endpoint, in
 
 void reliable_endpoint_clear_acks( struct reliable_endpoint_t * endpoint );
 
+void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint );
+
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint );
 
 void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // #ifndef RELIABLE_H
