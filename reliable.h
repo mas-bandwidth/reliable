@@ -66,8 +66,6 @@
 extern "C" {
 #endif
 
-void reliable_log_level( int level );
-
 int reliable_init();
 
 void reliable_term();
@@ -110,6 +108,10 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint );
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint );
 
 void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
+
+void reliable_log_level( int level );
+
+void reliable_set_printf_function( int (*function)( const char *, ... ) );
 
 #ifdef __cplusplus
 }

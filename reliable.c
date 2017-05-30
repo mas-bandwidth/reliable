@@ -35,15 +35,24 @@
 #define RELIABLE_ENABLE_TESTS 1
 #endif // #ifndef RELIABLE_ENABLE_TESTS
 
+#ifndef RELIABLE_ENABLE_LOGGING
 #define RELIABLE_ENABLE_LOGGING 1
+#endif // #ifndef RELIABLE_ENABLE_LOGGING
 
 // ------------------------------------------------------------------
 
 static int log_level = 0;
+static int (*printf_function)( const char *, ... ) = printf;
 
 void reliable_log_level( int level )
 {
     log_level = level;
+}
+
+void reliable_set_printf_function( int (*function)( const char *, ... ) )
+{
+    assert( function );
+    printf_function = function;
 }
 
 #if RELIABLE_ENABLE_LOGGING
