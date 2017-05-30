@@ -594,7 +594,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     reliable_sequence_buffer_generate_ack_bits( endpoint->received_packets, &ack, &ack_bits );
 
-    reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] sending packet %d\n", endpoint->config.name, sequence );
+    reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d\n", endpoint->config.name, sequence );
 
     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
@@ -901,7 +901,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
-        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] processing packet %d\n", endpoint->config.name, sequence );
+        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] processing packet %d\n", endpoint->config.name, sequence );
 
         if ( endpoint->config.process_packet_function( endpoint->config.context, endpoint->config.index, sequence, packet_data + packet_header_bytes, packet_bytes - packet_header_bytes ) )
         {
@@ -923,7 +923,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
                     if ( sent_packet_data && !sent_packet_data->acked )
                     {
-                        reliable_printf( RELIABLE_LOG_LEVEL_INFO, "[%s] acked packet %d\n", endpoint->config.name, sequence );
+                        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, sequence );
                         if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
                         {
                             endpoint->acks[endpoint->num_acks++] = sequence;
