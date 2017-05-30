@@ -41,8 +41,20 @@
 
 // ------------------------------------------------------------------
 
+static void default_assert_handler( const char * condition, const char * function, const char * file, int line )
+{
+    printf( "assert failed: ( %s ), function %s, file %s, line %d\n", condition, function, file, line );
+    #if defined( __GNUC__ )
+    __builtin_trap();
+    #elif defined( _MSC_VER )
+    __debugbreak();
+    #endif
+    exit( 1 );
+}
+
 static int log_level = 0;
 static int (*printf_function)( const char *, ... ) = printf;
+void (*reliable_assert_function)( const char *, const char *, const char * file, int line ) = default_assert_handler;
 
 void reliable_log_level( int level )
 {
@@ -53,6 +65,11 @@ void reliable_set_printf_function( int (*function)( const char *, ... ) )
 {
     assert( function );
     printf_function = function;
+}
+
+void reliable_set_assert_function( void (*function)( const char *, const char *, const char * file, int line ) )
+{
+    reliable_assert_function = function;
 }
 
 #if RELIABLE_ENABLE_LOGGING
