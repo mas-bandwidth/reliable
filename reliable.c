@@ -280,6 +280,7 @@ void * reliable_sequence_buffer_find( struct reliable_sequence_buffer_t * sequen
     assert( sequence_buffer );
     int index = sequence % sequence_buffer->num_entries;
     return ( ( sequence_buffer->entry_sequence[index] == (uint32_t) sequence ) ) ? ( sequence_buffer->entry_data + index * sequence_buffer->entry_stride ) : NULL;
+
 }
 
 void * reliable_sequence_buffer_at_index( struct reliable_sequence_buffer_t * sequence_buffer, int index )
@@ -634,6 +635,8 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
+    assert( sent_packet_data );
+
     sent_packet_data->acked = 0;
 
     if ( packet_bytes <= endpoint->config.fragment_above )
@@ -956,7 +959,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 if ( ack_bits & 1 )
                 {                    
                     const uint16_t ack_sequence = ack - ((uint16_t)i);
-                    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+                    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
                     if ( sent_packet_data && !sent_packet_data->acked )
                     {
                         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
