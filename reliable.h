@@ -87,6 +87,9 @@ struct reliable_config_t
     int fragment_reassembly_buffer_size;
     void (*transmit_packet_function)(void*,int,uint16_t,uint8_t*,int);
     int (*process_packet_function)(void*,int,uint16_t,uint8_t*,int);
+    void * allocator_context;
+    void * (*allocate_function)(void*,uint64_t);
+    void (*free_function)(void*,void*);
 };
 
 void reliable_default_config( struct reliable_config_t * config );

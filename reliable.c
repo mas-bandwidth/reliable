@@ -108,12 +108,15 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
     assert( num_entries > 0 );
     assert( entry_stride > 0 );
 
+    // todo
     struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*) malloc( sizeof( struct reliable_sequence_buffer_t ) );
 
     sequence_buffer->sequence = 0;
     sequence_buffer->num_entries = num_entries;
     sequence_buffer->entry_stride = entry_stride;
+    // todo
     sequence_buffer->entry_sequence = (uint32_t*) malloc( num_entries * sizeof( uint32_t ) );
+    // todo
     sequence_buffer->entry_data = (uint8_t*) malloc( num_entries * entry_stride );
 
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
@@ -127,11 +130,14 @@ void reliable_sequence_buffer_destroy( struct reliable_sequence_buffer_t * seque
 {
     assert( sequence_buffer );
 
+    // todo
     free( sequence_buffer->entry_sequence );
+    // todo
     free( sequence_buffer->entry_data );
 
     memset( sequence_buffer, 0, sizeof( struct reliable_sequence_buffer_t ) );
 
+    // todo
     free( sequence_buffer );
 }
 
@@ -397,6 +403,7 @@ void reliable_fragment_reassembly_data_cleanup( void * data )
     struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) data;
     if ( reassembly_data->packet_data )
     {
+        // todo
         free( reassembly_data->packet_data );
         reassembly_data->packet_data = NULL;
     }
@@ -455,11 +462,13 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     assert( config->transmit_packet_function != NULL );
     assert( config->process_packet_function != NULL );
 
+    // todo
     struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
 
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
     endpoint->config = *config;
+    // todo
     endpoint->acks = (uint16_t*) malloc( config->ack_buffer_size * sizeof( uint16_t ) );
     endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ) );
     endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ) );
@@ -483,19 +492,20 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
         struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
+            // todo
             free( reassembly_data->packet_data );
             reassembly_data->packet_data = NULL;
         }
     }
 
+    // todo
     free( endpoint->acks );
 
     reliable_sequence_buffer_destroy( endpoint->sent_packets );
     reliable_sequence_buffer_destroy( endpoint->received_packets );
     reliable_sequence_buffer_destroy( endpoint->fragment_reassembly );
 
-    memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
-
+    // todo
     free( endpoint );
 }
 
@@ -606,6 +616,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d without fragmentation\n", endpoint->config.name, sequence );
 
+        // todo
         uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
         int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
@@ -614,6 +625,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, transmit_packet_data, packet_header_bytes + packet_bytes );
 
+        // todo
         free( transmit_packet_data );
     }
     else
@@ -633,6 +645,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
         assert( num_fragments >= 1 );
         assert( num_fragments <= endpoint->config.max_fragments );
 
+        // todo
         uint8_t * fragment_packet_data = (uint8_t*) malloc( RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size );
 
         uint8_t * q = packet_data;
@@ -671,6 +684,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, fragment_packet_data, fragment_packet_bytes );
         }
 
+        // todo
         free( fragment_packet_data );
     }
 
@@ -980,6 +994,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->ack_bits = 0;
             reassembly_data->num_fragments_received = 0;
             reassembly_data->num_fragments_total = num_fragments;
+            // todo
             reassembly_data->packet_data = (uint8_t*) malloc( RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size );
             reassembly_data->packet_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
@@ -1023,6 +1038,7 @@ void reliable_endpoint_free_packet( struct reliable_endpoint_t * endpoint, void 
 
     (void) endpoint;
 
+    // todo
     free( packet );
 }
 
@@ -1055,6 +1071,7 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
         struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
+            // todo
             free( reassembly_data->packet_data );
             reassembly_data->packet_data = NULL;
         }
