@@ -96,6 +96,18 @@ void reliable_printf( int level, const char * format, ... )
 
 #endif // #if RELIABLE_ENABLE_LOGGING
 
+void * reliable_default_allocate_function( void * context, uint64_t bytes )
+{
+    (void) context;
+    return malloc( bytes );
+}
+
+void reliable_default_free_function( void * context, void * pointer )
+{
+    (void) context;
+    free( pointer );
+}
+
 // ------------------------------------------------------------------
 
 int reliable_init()
@@ -442,6 +454,9 @@ void reliable_fragment_reassembly_data_cleanup( void * data )
 
 struct reliable_endpoint_t
 {
+    void * allocator_context;
+    void * (*allocate_function)(void*,uint64_t);
+    void (*free_function)(void*,void*);
     struct reliable_config_t config;
     int num_acks;
     uint16_t * acks;
@@ -499,14 +514,29 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     assert( config->transmit_packet_function != NULL );
     assert( config->process_packet_function != NULL );
 
-    // todo
-    struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) malloc( sizeof( struct reliable_endpoint_t ) );
+    void * allocator_context = config->allocator_context;
+    void * (*allocate_function)(void*,uint64_t) = config->allocate_function;
+    void (*free_function)(void*,void*) = config->free_function;
+
+    if ( allocate_function == NULL )
+    {
+        allocate_function = reliable_default_allocate_function;
+    }
+
+    if ( free_function == NULL )
+    {
+        free_function = reliable_default_free_function;
+    }
+
+    struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) allocate_function( allocator_context, sizeof( struct reliable_endpoint_t ) );
 
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
+    endpoint->allocator_context = allocator_context;
+    endpoint->allocate_function = allocate_function;
+    endpoint->free_function = free_function;
     endpoint->config = *config;
-    // todo
-    endpoint->acks = (uint16_t*) malloc( config->ack_buffer_size * sizeof( uint16_t ) );
+    endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof( uint16_t ) );
     endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ) );
     endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ) );
     endpoint->fragment_reassembly = reliable_sequence_buffer_create( config->fragment_reassembly_buffer_size, sizeof( struct reliable_fragment_reassembly_data_t ) );
@@ -529,21 +559,18 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
         struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
-            // todo
-            free( reassembly_data->packet_data );
+            endpoint->free_function( endpoint->allocator_context, reassembly_data->packet_data );
             reassembly_data->packet_data = NULL;
         }
     }
 
-    // todo
-    free( endpoint->acks );
+    endpoint->free_function( endpoint->allocator_context, endpoint->acks );
 
     reliable_sequence_buffer_destroy( endpoint->sent_packets );
     reliable_sequence_buffer_destroy( endpoint->received_packets );
     reliable_sequence_buffer_destroy( endpoint->fragment_reassembly );
 
-    // todo
-    free( endpoint );
+    endpoint->free_function( endpoint->allocator_context, endpoint );
 }
 
 uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * endpoint )
@@ -655,8 +682,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d without fragmentation\n", endpoint->config.name, sequence );
 
-        // todo
-        uint8_t * transmit_packet_data = malloc( packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
+        uint8_t * transmit_packet_data = endpoint->allocate_function( endpoint->allocator_context, packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
         int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
 
@@ -664,8 +690,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, transmit_packet_data, packet_header_bytes + packet_bytes );
 
-        // todo
-        free( transmit_packet_data );
+        endpoint->free_function( endpoint->allocator_context, transmit_packet_data );
     }
     else
     {
@@ -684,8 +709,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
         assert( num_fragments >= 1 );
         assert( num_fragments <= endpoint->config.max_fragments );
 
-        // todo
-        uint8_t * fragment_packet_data = (uint8_t*) malloc( RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size );
+        uint8_t * fragment_packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size );
 
         uint8_t * q = packet_data;
 
@@ -723,8 +747,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, fragment_packet_data, fragment_packet_bytes );
         }
 
-        // todo
-        free( fragment_packet_data );
+        endpoint->free_function( endpoint->allocator_context, fragment_packet_data );
     }
 
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
@@ -1033,8 +1056,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->ack_bits = 0;
             reassembly_data->num_fragments_received = 0;
             reassembly_data->num_fragments_total = num_fragments;
-            // todo
-            reassembly_data->packet_data = (uint8_t*) malloc( RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size );
+            reassembly_data->packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size );
             reassembly_data->packet_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
         }
@@ -1074,11 +1096,7 @@ void reliable_endpoint_free_packet( struct reliable_endpoint_t * endpoint, void 
 {
     assert( endpoint );
     assert( packet );
-
-    (void) endpoint;
-
-    // todo
-    free( packet );
+    endpoint->free_function( endpoint->allocator_context, packet );
 }
 
 uint16_t * reliable_endpoint_get_acks( struct reliable_endpoint_t * endpoint, int * num_acks )
@@ -1110,8 +1128,7 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
         struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
-            // todo
-            free( reassembly_data->packet_data );
+            endpoint->free_function( endpoint->allocator_context, reassembly_data->packet_data );
             reassembly_data->packet_data = NULL;
         }
     }
