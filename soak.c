@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <string.h>
 #include <assert.h>
 #include <signal.h>
 #include <inttypes.h>
@@ -55,7 +56,7 @@ struct test_context_t
     struct reliable_endpoint_t * server;
 };
 
-struct test_context_t context;
+struct test_context_t global_context;
 
 void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
@@ -154,7 +155,7 @@ void soak_initialize()
 
     reliable_log_level( RELIABLE_LOG_LEVEL_DEBUG );
 
-    memset( &context, 0, sizeof( context ) );
+    memset( &global_context, 0, sizeof( global_context ) );
     
     struct reliable_config_t client_config;
     struct reliable_config_t server_config;
@@ -165,28 +166,36 @@ void soak_initialize()
     client_config.fragment_above = 500;
     server_config.fragment_above = 500;
 
+#ifdef _MSC_VER
+    strcpy_s( client_config.name, sizeof( client_config.name ), "client" );
+#else
     strcpy( client_config.name, "client" );
-    client_config.context = &context;
+#endif
+    client_config.context = &global_context;
     client_config.index = 0;
     client_config.transmit_packet_function = &test_transmit_packet_function;
     client_config.process_packet_function = &test_process_packet_function;
 
+#ifdef _MSC_VER
+    strcpy_s( server_config.name, sizeof( server_config.name ), "server" );
+#else
     strcpy( server_config.name, "server" );
-    server_config.context = &context;
+#endif
+    server_config.context = &global_context;
     client_config.index = 1;
     server_config.transmit_packet_function = &test_transmit_packet_function;
     server_config.process_packet_function = &test_process_packet_function;
 
-    context.client = reliable_endpoint_create( &client_config );
-    context.server = reliable_endpoint_create( &server_config );
+    global_context.client = reliable_endpoint_create( &client_config );
+    global_context.server = reliable_endpoint_create( &server_config );
 }
 
 void soak_shutdown()
 {
     printf( "shutdown\n" );
 
-    reliable_endpoint_destroy( context.client );
-    reliable_endpoint_destroy( context.server );
+    reliable_endpoint_destroy( global_context.client );
+    reliable_endpoint_destroy( global_context.server );
 
     reliable_term();
 }
@@ -200,19 +209,19 @@ void soak_iteration( double time )
     int packet_bytes;
     uint16_t sequence;
 
-    sequence = reliable_endpoint_next_packet_sequence( context.client );
+    sequence = reliable_endpoint_next_packet_sequence( global_context.client );
     packet_bytes = generate_packet_data( sequence, packet_data );
-    reliable_endpoint_send_packet( context.client, packet_data, packet_bytes );
+    reliable_endpoint_send_packet( global_context.client, packet_data, packet_bytes );
 
-    sequence = reliable_endpoint_next_packet_sequence( context.server );
+    sequence = reliable_endpoint_next_packet_sequence( global_context.server );
     packet_bytes = generate_packet_data( sequence, packet_data );
-    reliable_endpoint_send_packet( context.server, packet_data, packet_bytes );
+    reliable_endpoint_send_packet( global_context.server, packet_data, packet_bytes );
 
-    reliable_endpoint_update( context.client );
-    reliable_endpoint_update( context.server );
+    reliable_endpoint_update( global_context.client );
+    reliable_endpoint_update( global_context.server );
 
-    reliable_endpoint_clear_acks( context.client );
-    reliable_endpoint_clear_acks( context.server );
+    reliable_endpoint_clear_acks( global_context.client );
+    reliable_endpoint_clear_acks( global_context.server );
 }
 
 int main( int argc, char ** argv )

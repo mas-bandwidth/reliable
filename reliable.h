@@ -66,8 +66,6 @@
 extern "C" {
 #endif
 
-void reliable_log_level( int level );
-
 int reliable_init();
 
 void reliable_term();
@@ -113,6 +111,28 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint );
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint );
 
 void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
+
+void reliable_log_level( int level );
+
+void reliable_set_printf_function( int (*function)( const char *, ... ) );
+
+extern void (*netcode_assert_function)( const char *, const char *, const char * file, int line );
+
+#ifndef NDEBUG
+#define reliable_yojimbo_assert( condition )                                                \
+do                                                                                          \
+{                                                                                           \
+    if ( !(condition) )                                                                     \
+    {                                                                                       \
+        reliable_assert_function( #condition, __FUNCTION__, __FILE__, __LINE__ );           \
+        exit(1);                                                                            \
+    }                                                                                       \
+} while(0)
+#else
+#define reliable_assert( ignore ) ((void)0)
+#endif
+
+void reliable_set_assert_function( void (*function)( const char * /*condition*/, const char * /*function*/, const char * /*file*/, int /*line*/ ) );
 
 #ifdef __cplusplus
 }
