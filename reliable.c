@@ -136,6 +136,9 @@ int reliable_sequence_less_than( uint16_t s1, uint16_t s2 )
 
 struct reliable_sequence_buffer_t
 {
+    void * allocator_context;
+    void * (*allocate_function)(void*,uint64_t);
+    void (*free_function)(void*,void*);
     uint16_t sequence;
     int num_entries;
     int entry_stride;
@@ -143,24 +146,32 @@ struct reliable_sequence_buffer_t
     uint8_t * entry_data;
 };
 
-struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_entries, int entry_stride )
+struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_entries, int entry_stride, void * allocator_context, void* (*allocate_function)(void*,uint64_t), void (*free_function)(void*,void*) )
 {
     assert( num_entries > 0 );
     assert( entry_stride > 0 );
 
-    // todo
-    struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*) malloc( sizeof( struct reliable_sequence_buffer_t ) );
+    if ( allocate_function == NULL )
+    {
+        allocate_function = reliable_default_allocate_function;
+    }
 
+    if ( free_function == NULL )
+    {
+        free_function = reliable_default_free_function;
+    }
+
+    struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*) allocate_function( allocator_context, sizeof( struct reliable_sequence_buffer_t ) );
+
+    sequence_buffer->allocator_context = allocator_context;
+    sequence_buffer->allocate_function = allocate_function;
+    sequence_buffer->free_function = free_function;
     sequence_buffer->sequence = 0;
     sequence_buffer->num_entries = num_entries;
     sequence_buffer->entry_stride = entry_stride;
-    // todo
-    sequence_buffer->entry_sequence = (uint32_t*) malloc( num_entries * sizeof( uint32_t ) );
-    // todo
-    sequence_buffer->entry_data = (uint8_t*) malloc( num_entries * entry_stride );
-
+    sequence_buffer->entry_sequence = (uint32_t*) allocate_function( allocator_context, num_entries * sizeof( uint32_t ) );
+    sequence_buffer->entry_data = (uint8_t*) allocate_function( allocator_context, num_entries * entry_stride );
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
-
     memset( sequence_buffer->entry_data, 0, num_entries * entry_stride );
 
     return sequence_buffer;
@@ -169,16 +180,9 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
 void reliable_sequence_buffer_destroy( struct reliable_sequence_buffer_t * sequence_buffer )
 {
     assert( sequence_buffer );
-
-    // todo
-    free( sequence_buffer->entry_sequence );
-    // todo
-    free( sequence_buffer->entry_data );
-
-    memset( sequence_buffer, 0, sizeof( struct reliable_sequence_buffer_t ) );
-
-    // todo
-    free( sequence_buffer );
+    sequence_buffer->free_function( sequence_buffer->allocator_context, sequence_buffer->entry_sequence );
+    sequence_buffer->free_function( sequence_buffer->allocator_context, sequence_buffer->entry_data );
+    sequence_buffer->free_function( sequence_buffer->allocator_context, sequence_buffer );
 }
 
 void reliable_sequence_buffer_reset( struct reliable_sequence_buffer_t * sequence_buffer )
@@ -537,9 +541,9 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->free_function = free_function;
     endpoint->config = *config;
     endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof( uint16_t ) );
-    endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ) );
-    endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ) );
-    endpoint->fragment_reassembly = reliable_sequence_buffer_create( config->fragment_reassembly_buffer_size, sizeof( struct reliable_fragment_reassembly_data_t ) );
+    endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, sizeof( struct reliable_sent_packet_data_t ), allocator_context, allocate_function, free_function );
+    endpoint->received_packets = reliable_sequence_buffer_create( config->received_packets_buffer_size, sizeof( struct reliable_received_packet_data_t ), allocator_context, allocate_function, free_function );
+    endpoint->fragment_reassembly = reliable_sequence_buffer_create( config->fragment_reassembly_buffer_size, sizeof( struct reliable_fragment_reassembly_data_t ), allocator_context, allocate_function, free_function );
 
     memset( endpoint->acks, 0, config->ack_buffer_size * sizeof( uint16_t ) );
 
@@ -1212,7 +1216,7 @@ struct test_sequence_data_t
 
 static void test_sequence_buffer()
 {
-    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
+    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ), NULL, NULL, NULL );
 
     check( sequence_buffer );
     check( sequence_buffer->sequence == 0 );
@@ -1265,7 +1269,7 @@ static void test_sequence_buffer()
 
 static void test_generate_ack_bits()
 {
-    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ) );
+    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( TEST_SEQUENCE_BUFFER_SIZE, sizeof( struct test_sequence_data_t ), NULL, NULL, NULL );
 
     uint16_t ack = 0;
     uint32_t ack_bits = 0xFFFFFFFF;
