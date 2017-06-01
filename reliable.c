@@ -192,7 +192,7 @@ void reliable_sequence_buffer_reset( struct reliable_sequence_buffer_t * sequenc
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
 }
 
-void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t * sequence_buffer, int start_sequence, int finish_sequence, void (*cleanup_function)(void*) )
+void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t * sequence_buffer, int start_sequence, int finish_sequence, void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
 {
     assert( sequence_buffer );
     if ( finish_sequence < start_sequence ) 
@@ -206,7 +206,7 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
         {
             if ( cleanup_function )
             {
-                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ) );
+                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ), sequence_buffer->allocator_context, sequence_buffer->free_function );
             }
             sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] = 0xFFFFFFFF;
         }
@@ -218,7 +218,7 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
         {
             if ( cleanup_function )
             {
-                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * i );
+                cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * i, sequence_buffer->allocator_context, sequence_buffer->free_function );
             }
             sequence_buffer->entry_sequence[i] = 0xFFFFFFFF;
         }
@@ -247,7 +247,7 @@ void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequ
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
 
-void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence, void (*cleanup_function)(void*) )
+void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence, void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
 {
     assert( sequence_buffer );
     if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
@@ -262,7 +262,7 @@ void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_bu
     int index = sequence % sequence_buffer->num_entries;
     if ( sequence_buffer->entry_sequence[index] != 0xFFFFFFFF )
     {
-        cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ) );
+        cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * ( sequence % sequence_buffer->num_entries ), sequence_buffer->allocator_context, sequence_buffer->free_function );
     }
     sequence_buffer->entry_sequence[index] = sequence;
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
@@ -274,14 +274,14 @@ void reliable_sequence_buffer_remove( struct reliable_sequence_buffer_t * sequen
     sequence_buffer->entry_sequence[ sequence % sequence_buffer->num_entries ] = 0xFFFFFFFF;
 }
 
-void reliable_sequence_buffer_remove_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence, void (*cleanup_function)(void*) )
+void reliable_sequence_buffer_remove_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence, void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
 {
     assert( sequence_buffer );
     int index = sequence % sequence_buffer->num_entries;
     if ( sequence_buffer->entry_sequence[index] != 0xFFFFFFFF )
     {
         sequence_buffer->entry_sequence[index] = 0xFFFFFFFF;
-        cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * index );
+        cleanup_function( sequence_buffer->entry_data + sequence_buffer->entry_stride * index, sequence_buffer->allocator_context, sequence_buffer->free_function );
     }
 }
 
@@ -443,13 +443,14 @@ struct reliable_fragment_reassembly_data_t
     uint8_t fragment_received[256];
 };
 
-void reliable_fragment_reassembly_data_cleanup( void * data )
+void reliable_fragment_reassembly_data_cleanup( void * data, void * allocator_context, void (*free_function)(void*,void*) )
+
 {
+    assert( free_function );
     struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) data;
     if ( reassembly_data->packet_data )
     {
-        // todo
-        free( reassembly_data->packet_data );
+        free_function( allocator_context, reassembly_data->packet_data );
         reassembly_data->packet_data = NULL;
     }
 }
