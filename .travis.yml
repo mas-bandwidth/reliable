@@ -10,10 +10,9 @@ compiler:
 
 install:
   - wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha10/premake-5.0.0-alpha10-linux.tar.gz -O /tmp/premake5.tar.gz
-  - cd /tmp
-  - tar -zxvf premake5.tar.gz
+  - tar -zxvf /tmp/premake5.tar.gz
   
 script:
-  - premake5 gmake
+  - /tmp/premake5 gmake
   - make clean && make all config=debug_x64 && ./bin/test
   - make clean && make all config=release_x64 && ./bin/test
