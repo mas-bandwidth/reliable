@@ -12,6 +12,10 @@ It has the following features:
 
 2. Packet fragmentation and re-assembly so you can send packets larger than MTU
 
+reliable.io provides no network functionality and is designed to be used with your existing network layer. It has no opinion on what topology that you use, and thus supports client/server or peer-to-peer communication.
+
+If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
+
 # Author
 
 The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler), a recognized expert in the field of game network programming with over 15 years experience in the game industry.
