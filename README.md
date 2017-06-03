@@ -22,7 +22,7 @@ You can support Glenn's work writing articles and open source code via [Patreon]
 
 # Sponsors
 
-**netcode.io** is generously sponsored by:
+**reliable.io** is generously sponsored by:
 
 * **Gold Sponsors**
     * [Remedy Entertainment](http://www.remedygames.com/)
