@@ -18,7 +18,7 @@ reliable.io is a very low-level library and is designed to be used with your exi
 
 If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
 
-If you would like something more high level that implements reliable-ordered messages, try [yojimbo](http://libyojimbo.com).
+If you would like something more high-level that implements reliable-ordered messages, try [yojimbo](http://libyojimbo.com).
 
 # Author
 
