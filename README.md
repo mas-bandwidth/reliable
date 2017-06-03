@@ -6,7 +6,7 @@
 
 It's designed for protocols that have a bidirectional flow of packets, for example real-time games like first person shooters.
 
-It has the following features:
+It has the following features: 
 
 1. Identifies which packets were received by the other side (acks)
 
