@@ -4,7 +4,7 @@
 
 **reliable.io** is a simple reliability layer for UDP-based protocols.
 
-It's designed for protocols that have a bidirectional flow of packets, for example, real-time action games like first person shooters.
+It's designed for protocols that have a bidirectional flow of packets, for example real-time games like first person shooters.
 
 It has the following features:
 
