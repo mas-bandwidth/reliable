@@ -119,7 +119,7 @@ void reliable_set_printf_function( int (*function)( const char *, ... ) );
 extern void (*netcode_assert_function)( const char *, const char *, const char * file, int line );
 
 #ifndef NDEBUG
-#define reliable_yojimbo_assert( condition )                                                \
+#define reliable_assert( condition )                                                        \
 do                                                                                          \
 {                                                                                           \
     if ( !(condition) )                                                                     \
