@@ -22,7 +22,10 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#define RELIABLE_ENABLE_TESTS 1
+
 #include "reliable.h"
+#include "reliable.c"
 #include <stdio.h>
 #include <assert.h>
 

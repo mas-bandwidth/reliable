@@ -1,7 +1,7 @@
 
 solution "reliable"
     kind "ConsoleApp"
-    language "C++"
+    language "C"
     platforms { "x64" }
     configurations { "Debug", "Release" }
     if not os.is "windows" then
@@ -20,7 +20,7 @@ solution "reliable"
         links { release_libs }
         
 project "test"
-    files { "test.c", "reliable.c" }
+    files { "test.cpp" }
 
 project "soak"
     files { "soak.c", "reliable.c" }
@@ -107,7 +107,7 @@ else
         trigger     = "docker",
         description = "Build and run reliable.io tests inside docker",
         execute = function ()
-            os.execute "rm -rf docker/reliable.io && mkdir -p docker/reliable.io && cp *.h docker/reliable.io && cp *.c docker/reliable.io && cp premake5.lua docker/reliable.io && cd docker && docker build -t \"networkprotocol:reliable.io-server\" . && rm -rf reliable.io && docker run -ti -p 40000:40000/udp networkprotocol:reliable.io-server"
+            os.execute "rm -rf docker/reliable.io && mkdir -p docker/reliable.io && cp *.h docker/reliable.io && cp *.c docker/reliable.io && cp *.cpp docker/reliable.io && cp premake5.lua docker/reliable.io && cd docker && docker build -t \"networkprotocol:reliable.io-server\" . && rm -rf reliable.io && docker run -ti -p 40000:40000/udp networkprotocol:reliable.io-server"
         end
     }
 
@@ -116,7 +116,7 @@ else
         trigger     = "valgrind",
         description = "Run valgrind over tests inside docker",
         execute = function ()
-            os.execute "rm -rf valgrind/reliable.io && mkdir -p valgrind/reliable.io && cp *.h valgrind/reliable.io && cp *.c valgrind/reliable.io && cp premake5.lua valgrind/reliable.io && cd valgrind && docker build -t \"networkprotocol:reliable.io-valgrind\" . && rm -rf reliable.io && docker run -ti networkprotocol:reliable.io-valgrind"
+            os.execute "rm -rf valgrind/reliable.io && mkdir -p valgrind/reliable.io && cp *.h valgrind/reliable.io && cp *.c valgrind/reliable.io && cp *.cpp valgrind/reliable.io && cp premake5.lua valgrind/reliable.io && cd valgrind && docker build -t \"networkprotocol:reliable.io-valgrind\" . && rm -rf reliable.io && docker run -ti networkprotocol:reliable.io-valgrind"
         end
     }
 
@@ -125,7 +125,7 @@ else
         trigger     = "loc",
         description = "Count lines of code",
         execute = function ()
-            os.execute "wc -l *.h *.c"
+            os.execute "wc -l *.h *.c *.cpp"
         end
     }
 

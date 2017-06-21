@@ -63,7 +63,14 @@
 #define RELIABLE_ERROR      0
 
 #ifdef __cplusplus
+#define RELIABLE_CONST const
 extern "C" {
+#else
+#if defined(__STDC__)
+#define RELIABLE_CONST const
+#else
+#define RELIABLE_CONST
+#endif
 #endif
 
 int reliable_init();
@@ -114,9 +121,9 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
 
 void reliable_log_level( int level );
 
-void reliable_set_printf_function( int (*function)( const char *, ... ) );
+void reliable_set_printf_function( int (*function)( RELIABLE_CONST char *, ... ) );
 
-extern void (*netcode_assert_function)( const char *, const char *, const char * file, int line );
+extern void (*netcode_assert_function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char * file, int line );
 
 #ifndef NDEBUG
 #define reliable_assert( condition )                                                        \
@@ -132,7 +139,7 @@ do                                                                              
 #define reliable_assert( ignore ) ((void)0)
 #endif
 
-void reliable_set_assert_function( void (*function)( const char * /*condition*/, const char * /*function*/, const char * /*file*/, int /*line*/ ) );
+void reliable_set_assert_function( void (*function)( RELIABLE_CONST char * /*condition*/, RELIABLE_CONST char * /*function*/, RELIABLE_CONST char * /*file*/, int /*line*/ ) );
 
 #ifdef __cplusplus
 }

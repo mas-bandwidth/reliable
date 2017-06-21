@@ -33,7 +33,7 @@
 #include <math.h>
 
 #ifndef RELIABLE_ENABLE_TESTS
-#define RELIABLE_ENABLE_TESTS 1
+#define RELIABLE_ENABLE_TESTS 0
 #endif // #ifndef RELIABLE_ENABLE_TESTS
 
 #ifndef RELIABLE_ENABLE_LOGGING
@@ -42,7 +42,7 @@
 
 // ------------------------------------------------------------------
 
-static void default_assert_handler( const char * condition, const char * function, const char * file, int line )
+static void default_assert_handler( RELIABLE_CONST char * condition, RELIABLE_CONST char * function, RELIABLE_CONST char * file, int line )
 {
     printf( "assert failed: ( %s ), function %s, file %s, line %d\n", condition, function, file, line );
     #if defined( __GNUC__ )
@@ -54,28 +54,28 @@ static void default_assert_handler( const char * condition, const char * functio
 }
 
 static int log_level = 0;
-static int (*printf_function)( const char *, ... ) = printf;
-void (*reliable_assert_function)( const char *, const char *, const char * file, int line ) = default_assert_handler;
+static int (*printf_function)( RELIABLE_CONST char *, ... ) = printf;
+void (*reliable_assert_function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char * file, int line ) = default_assert_handler;
 
 void reliable_log_level( int level )
 {
     log_level = level;
 }
 
-void reliable_set_printf_function( int (*function)( const char *, ... ) )
+void reliable_set_printf_function( int (*function)( RELIABLE_CONST char *, ... ) )
 {
     reliable_assert( function );
     printf_function = function;
 }
 
-void reliable_set_assert_function( void (*function)( const char *, const char *, const char * file, int line ) )
+void reliable_set_assert_function( void (*function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char * file, int line ) )
 {
     reliable_assert_function = function;
 }
 
 #if RELIABLE_ENABLE_LOGGING
 
-void reliable_printf( int level, const char * format, ... ) 
+void reliable_printf( int level, RELIABLE_CONST char * format, ... ) 
 {
     if ( level > log_level )
         return;
@@ -87,7 +87,7 @@ void reliable_printf( int level, const char * format, ... )
 
 #else // #if RELIABLE_ENABLE_LOGGING
 
-void reliable_printf( int level, const char * format, ... ) 
+void reliable_printf( int level, RELIABLE_CONST char * format, ... ) 
 {
     (void) level;
     (void) format;
@@ -560,7 +560,7 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     int i;
     for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
     {
-        struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
+        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
             endpoint->free_function( endpoint->allocator_context, reassembly_data->packet_data );
@@ -674,7 +674,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d\n", endpoint->config.name, sequence );
 
-    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
+    struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) reliable_sequence_buffer_insert( endpoint->sent_packets, sequence );
 
     reliable_assert( sent_packet_data );
 
@@ -686,7 +686,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] sending packet %d without fragmentation\n", endpoint->config.name, sequence );
 
-        uint8_t * transmit_packet_data = endpoint->allocate_function( endpoint->allocator_context, packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
+        uint8_t * transmit_packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
         int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
 
@@ -757,7 +757,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT]++;
 }
 
-int reliable_read_packet_header( char * name, uint8_t * packet_data, int packet_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
+int reliable_read_packet_header( RELIABLE_CONST char * name, uint8_t * packet_data, int packet_bytes, uint16_t * sequence, uint16_t * ack, uint32_t * ack_bits )
 {
     if ( packet_bytes < 3 )
     {
@@ -987,7 +987,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         {
             reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet %d successful\n", endpoint->config.name, sequence );
 
-            struct reliable_received_packet_data_t * received_packet_data = reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
+            struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
 
             reliable_assert( received_packet_data );
 
@@ -999,8 +999,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             {
                 if ( ack_bits & 1 )
                 {                    
-                    const uint16_t ack_sequence = ack - ((uint16_t)i);
-                    struct reliable_sent_packet_data_t * sent_packet_data = reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
+                    uint16_t ack_sequence = ack - ((uint16_t)i);
+                    struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
                     if ( sent_packet_data && !sent_packet_data->acked )
                     {
                         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
@@ -1042,11 +1042,11 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
-        struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
+        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
 
         if ( !reassembly_data )
         {
-            reassembly_data = reliable_sequence_buffer_insert_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
+            reassembly_data = (struct reliable_fragment_reassembly_data_t*) reliable_sequence_buffer_insert_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
 
             if ( !reassembly_data )
             {
@@ -1129,7 +1129,7 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
     int i;
     for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
     {
-        struct reliable_fragment_reassembly_data_t * reassembly_data = reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
+        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
         if ( reassembly_data && reassembly_data->packet_data )
         {
             endpoint->free_function( endpoint->allocator_context, reassembly_data->packet_data );
@@ -1159,9 +1159,9 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint )
 #include <stdlib.h>
 #include <memory.h>
 
-static void check_handler( char * condition, 
-                           char * function,
-                           char * file,
+static void check_handler( RELIABLE_CONST char * condition, 
+                           RELIABLE_CONST char * function,
+                           RELIABLE_CONST char * file,
                            int line )
 {
     printf( "check failed: ( %s ), function %s, file %s, line %d\n", condition, function, file, line );
@@ -1175,13 +1175,13 @@ static void check_handler( char * condition,
     exit( 1 );
 }
 
-#define check( condition )                                                                      \
-do                                                                                              \
-{                                                                                               \
-    if ( !(condition) )                                                                         \
-    {                                                                                           \
-        check_handler( #condition, (char*) __FUNCTION__, (char*) __FILE__, __LINE__ );          \
-    }                                                                                           \
+#define check( condition )                                                                                      \
+do                                                                                                              \
+{                                                                                                               \
+    if ( !(condition) )                                                                                         \
+    {                                                                                                           \
+        check_handler( #condition, (RELIABLE_CONST char*) __FUNCTION__, __FILE__, __LINE__ );                   \
+    }                                                                                                           \
 } while(0)
 
 static void test_endian()
