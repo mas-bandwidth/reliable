@@ -139,7 +139,10 @@ do                                                                              
 #define reliable_assert( ignore ) ((void)0)
 #endif
 
-void reliable_set_assert_function( void (*function)( RELIABLE_CONST char * /*condition*/, RELIABLE_CONST char * /*function*/, RELIABLE_CONST char * /*file*/, int /*line*/ ) );
+void reliable_set_assert_function( void (*function)( RELIABLE_CONST char * /*condition*/, 
+                                   RELIABLE_CONST char * /*function*/, 
+                                   RELIABLE_CONST char * /*file*/, 
+                                   int /*line*/ ) );
 
 #ifdef __cplusplus
 }
