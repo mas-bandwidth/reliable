@@ -175,6 +175,8 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
     sequence_buffer->entry_stride = entry_stride;
     sequence_buffer->entry_sequence = (uint32_t*) allocate_function( allocator_context, num_entries * sizeof( uint32_t ) );
     sequence_buffer->entry_data = (uint8_t*) allocate_function( allocator_context, num_entries * entry_stride );
+    reliable_assert( sequence_buffer->entry_sequence );
+    reliable_assert( sequence_buffer->entry_data );
     memset( sequence_buffer->entry_sequence, 0xFF, sizeof( uint32_t) * sequence_buffer->num_entries );
     memset( sequence_buffer->entry_data, 0, num_entries * entry_stride );
 
@@ -551,6 +553,8 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     }
 
     struct reliable_endpoint_t * endpoint = (struct reliable_endpoint_t*) allocate_function( allocator_context, sizeof( struct reliable_endpoint_t ) );
+
+    reliable_assert( endpoint );
 
     memset( endpoint, 0, sizeof( struct reliable_endpoint_t ) );
 
@@ -1061,7 +1065,6 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_assert( received_packet_data );
 
-            // todo: fill received packet data (if any is needed)
             (void) received_packet_data;
 
             int i;
