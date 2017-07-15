@@ -54,7 +54,7 @@ static void default_assert_handler( RELIABLE_CONST char * condition, RELIABLE_CO
 }
 
 static int log_level = 0;
-static int (*printf_function)( RELIABLE_CONST char *, ... ) = printf;
+static int (*printf_function)( RELIABLE_CONST char *, ... ) = ( int (*)( RELIABLE_CONST char *, ... ) ) printf;
 void (*reliable_assert_function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char * file, int line ) = default_assert_handler;
 
 void reliable_log_level( int level )
