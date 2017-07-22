@@ -25,6 +25,9 @@ project "test"
 project "soak"
     files { "soak.c", "reliable.c" }
 
+project "stats"
+    files { "stats.c", "reliable.c" }
+
 project "fuzz"
     files { "fuzz.c", "reliable.c" }
 
@@ -68,6 +71,18 @@ else
             os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 soak" == 0 then
                 os.execute "./bin/soak"
+            end
+        end
+    }
+
+    newaction
+    {
+        trigger     = "stats",
+        description = "Build and run stats example",
+        execute = function ()
+            os.execute "test ! -e Makefile && premake5 gmake"
+            if os.execute "make -j32 stats" == 0 then
+                os.execute "./bin/stats"
             end
         end
     }

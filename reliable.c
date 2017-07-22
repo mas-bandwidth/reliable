@@ -483,6 +483,8 @@ struct reliable_endpoint_t
     void (*free_function)(void*,void*);
     struct reliable_config_t config;
     double time;
+    float rtt;
+    float smoothed_rtt;
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
@@ -524,6 +526,8 @@ void reliable_default_config( struct reliable_config_t * config )
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
+    config->rtt_smoothing_factor = 0.9f;
+    config->jitter_smoothing_factor = 0.9f;
 }
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time )
@@ -1027,13 +1031,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         return;
     }
 
-    endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
-
     uint8_t prefix_byte = packet_data[0];
 
     if ( ( prefix_byte & 1 ) == 0 )
     {
         // regular packet
+
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED]++;
 
         uint16_t sequence;
         uint16_t ack;
@@ -1084,11 +1088,24 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     if ( sent_packet_data && !sent_packet_data->acked )
                     {
                         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
+
+                        endpoint->rtt = sent_packet_data->time - endpoint->time;
+                        
+                        if ( fabs( endpoint->smoothed_rtt - endpoint->rtt ) > 0.00001 )
+                        {
+                            endpoint->smoothed_rtt += ( endpoint->rtt - endpoint->smoothed_rtt ) * endpoint->config.rtt_smoothing_factor;
+                        }
+                        else
+                        {
+                            endpoint->smoothed_rtt = endpoint->rtt;
+                        }
+                      
                         if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
                         {
                             endpoint->acks[endpoint->num_acks++] = ack_sequence;
                             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                         }
+                        
                         sent_packet_data->acked = 1;
                     }
                 }
@@ -1252,10 +1269,25 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double time )
 {
     reliable_assert( endpoint );
-
     endpoint->time = time;
+}
 
-    // todo
+float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->rtt;
+}
+
+float reliable_endpoint_smoothed_rtt( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->smoothed_rtt;
+}
+
+RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->counters;
 }
 
 // ---------------------------------------------------------------
@@ -1519,7 +1551,9 @@ static void test_transmit_packet_function( void * _context, int index, uint16_t 
     struct test_context_t * context = (struct test_context_t*) _context;
 
     if ( context->drop )
+    {
         return;
+    }
 
     if ( index == 0 )
     {
@@ -1795,10 +1829,19 @@ void test_packets()
     int i;
     for ( i = 0; i < 16; ++i )
     {
-        uint8_t packet_data[TEST_MAX_PACKET_BYTES];
-        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
-        int packet_bytes = generate_packet_data( sequence, packet_data );
-        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+        {
+            uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+            uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+            int packet_bytes = generate_packet_data( sequence, packet_data );
+            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+        }
+
+        {
+            uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+            uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+            int packet_bytes = generate_packet_data( sequence, packet_data );
+            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+        }
 
         reliable_endpoint_update( context.sender, time );
         reliable_endpoint_update( context.receiver, time );
@@ -1812,12 +1855,6 @@ void test_packets()
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
 }
-
-void test_rtt()
-{
-    // ...
-}
-
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -1837,7 +1874,6 @@ void reliable_test()
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
-        RUN_TEST( test_rtt );
     }
 }
 
