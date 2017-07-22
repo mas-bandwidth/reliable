@@ -56,6 +56,8 @@ struct test_context_t
     struct reliable_endpoint_t * server;
 };
 
+double time = 100.0;
+
 struct test_context_t global_context;
 
 void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
@@ -186,8 +188,8 @@ void soak_initialize()
     server_config.transmit_packet_function = &test_transmit_packet_function;
     server_config.process_packet_function = &test_process_packet_function;
 
-    global_context.client = reliable_endpoint_create( &client_config );
-    global_context.server = reliable_endpoint_create( &server_config );
+    global_context.client = reliable_endpoint_create( &client_config, time );
+    global_context.server = reliable_endpoint_create( &server_config, time );
 }
 
 void soak_shutdown()
@@ -217,11 +219,13 @@ void soak_iteration( double time )
     packet_bytes = generate_packet_data( sequence, packet_data );
     reliable_endpoint_send_packet( global_context.server, packet_data, packet_bytes );
 
-    reliable_endpoint_update( global_context.client );
-    reliable_endpoint_update( global_context.server );
+    reliable_endpoint_update( global_context.client, time );
+    reliable_endpoint_update( global_context.server, time );
 
     reliable_endpoint_clear_acks( global_context.client );
     reliable_endpoint_clear_acks( global_context.server );
+
+    time += 0.01;
 }
 
 int main( int argc, char ** argv )

@@ -99,7 +99,7 @@ struct reliable_config_t
 
 void reliable_default_config( struct reliable_config_t * config );
 
-struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config );
+struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time );
 
 uint16_t reliable_endpoint_next_packet_sequence( struct reliable_endpoint_t * endpoint );
 
@@ -115,7 +115,7 @@ void reliable_endpoint_clear_acks( struct reliable_endpoint_t * endpoint );
 
 void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint );
 
-void reliable_endpoint_update( struct reliable_endpoint_t * endpoint );
+void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double time );
 
 void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint );
 

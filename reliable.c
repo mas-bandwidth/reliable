@@ -482,6 +482,7 @@ struct reliable_endpoint_t
     void * (*allocate_function)(void*,uint64_t);
     void (*free_function)(void*,void*);
     struct reliable_config_t config;
+    double time;
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
@@ -494,6 +495,7 @@ struct reliable_endpoint_t
 struct reliable_sent_packet_data_t
 {
     uint8_t acked;
+    double time;
 };
 
 struct reliable_received_packet_data_t
@@ -524,7 +526,7 @@ void reliable_default_config( struct reliable_config_t * config )
     config->fragment_reassembly_buffer_size = 64;
 }
 
-struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config )
+struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time )
 {
     reliable_assert( config );
     reliable_assert( config->max_packet_size > 0 );
@@ -562,6 +564,7 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->allocate_function = allocate_function;
     endpoint->free_function = free_function;
     endpoint->config = *config;
+    endpoint->time = time;
 
     endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof( uint16_t ) );
     
@@ -720,6 +723,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
     reliable_assert( sent_packet_data );
 
     sent_packet_data->acked = 0;
+    sent_packet_data->time = endpoint->time;
 
     if ( packet_bytes <= endpoint->config.fragment_above )
     {
@@ -1245,13 +1249,13 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
     reliable_sequence_buffer_reset( endpoint->fragment_reassembly );
 }
 
-void reliable_endpoint_update( struct reliable_endpoint_t * endpoint )
+void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double time )
 {
     reliable_assert( endpoint );
 
-    (void) endpoint;
+    endpoint->time = time;
 
-    // ...
+    // todo
 }
 
 // ---------------------------------------------------------------
@@ -1544,6 +1548,8 @@ static int test_process_packet_function( void * _context, int index, uint16_t se
 
 static void test_acks()
 {
+    double time = 100.0;
+
     struct test_context_t context;
     memset( &context, 0, sizeof( context ) );
     
@@ -1563,8 +1569,10 @@ static void test_acks()
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function;
 
-    context.sender = reliable_endpoint_create( &sender_config );
-    context.receiver = reliable_endpoint_create( &receiver_config );
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    double delta_time = 0.1;
 
     int i;
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
@@ -1575,8 +1583,10 @@ static void test_acks()
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
 
-        reliable_endpoint_update( context.sender );
-        reliable_endpoint_update( context.receiver );
+        reliable_endpoint_update( context.sender, time );
+        reliable_endpoint_update( context.receiver, time );
+
+        time += delta_time;
     }
 
     uint8_t sender_acked_packet[TEST_ACKS_NUM_ITERATIONS];
@@ -1615,6 +1625,8 @@ static void test_acks()
 
 static void test_acks_packet_loss()
 {
+    double time = 100.0;
+
     struct test_context_t context;
     memset( &context, 0, sizeof( context ) );
     
@@ -1634,8 +1646,10 @@ static void test_acks_packet_loss()
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function;
 
-    context.sender = reliable_endpoint_create( &sender_config );
-    context.receiver = reliable_endpoint_create( &receiver_config );
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    const double delta_time = 0.1f;
 
     int i;
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )
@@ -1648,8 +1662,10 @@ static void test_acks_packet_loss()
         reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
         reliable_endpoint_send_packet( context.receiver, dummy_packet, sizeof( dummy_packet ) );
 
-        reliable_endpoint_update( context.sender );
-        reliable_endpoint_update( context.receiver );
+        reliable_endpoint_update( context.sender, time );
+        reliable_endpoint_update( context.receiver, time );
+
+        time += delta_time;
     }
 
     uint8_t sender_acked_packet[TEST_ACKS_NUM_ITERATIONS];
@@ -1737,6 +1753,8 @@ static int test_process_packet_function_validate( void * context, int index, uin
 
 void test_packets()
 {
+    double time = 100.0;
+
     struct test_context_t context;
     memset( &context, 0, sizeof( context ) );
     
@@ -1769,8 +1787,10 @@ void test_packets()
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
     receiver_config.process_packet_function = &test_process_packet_function_validate;
 
-    context.sender = reliable_endpoint_create( &sender_config );
-    context.receiver = reliable_endpoint_create( &receiver_config );
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    double delta_time = 0.1;
 
     int i;
     for ( i = 0; i < 16; ++i )
@@ -1780,15 +1800,22 @@ void test_packets()
         int packet_bytes = generate_packet_data( sequence, packet_data );
         reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
 
-        reliable_endpoint_update( context.sender );
-        reliable_endpoint_update( context.receiver );
+        reliable_endpoint_update( context.sender, time );
+        reliable_endpoint_update( context.receiver, time );
 
         reliable_endpoint_clear_acks( context.sender );
         reliable_endpoint_clear_acks( context.receiver );
+
+        time += delta_time;
     }
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
+}
+
+void test_rtt()
+{
+    // ...
 }
 
 #define RUN_TEST( test_function )                                           \
@@ -1810,6 +1837,7 @@ void reliable_test()
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
+        RUN_TEST( test_rtt );
     }
 }
 
