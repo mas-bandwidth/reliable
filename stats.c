@@ -31,7 +31,7 @@
 #include <signal.h>
 #include <inttypes.h>
 
-#define MAX_PACKET_BYTES (16*1024)
+#define MAX_PACKET_BYTES 1024
 
 static volatile int quit = 0;
 
@@ -166,8 +166,8 @@ void stats_initialize()
     reliable_default_config( &client_config );
     reliable_default_config( &server_config );
 
-    client_config.fragment_above = 500;
-    server_config.fragment_above = 500;
+    client_config.fragment_above = MAX_PACKET_BYTES;
+    server_config.fragment_above = MAX_PACKET_BYTES;
 
 #ifdef _MSC_VER
     strcpy_s( client_config.name, sizeof( client_config.name ), "client" );

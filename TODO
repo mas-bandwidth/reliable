@@ -1,10 +1,20 @@
 DONE
 
-    ...
+    Implement RTT estimate
+
+    Create stats program to test it.
 
 TODO
 
-    Implement RTT estimate
+    It looks like the packet ack is off by one, eg. the first ack is always dropped?
+
+    If this is the case, fix it.
+
+    ------------------------------------------
+
+    Extend stats program to have packet delay, eg. simulator.
+
+    ------------------------------------------
 
     Implement jitter estimate
 

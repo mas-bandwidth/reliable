@@ -800,6 +800,8 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             int fragment_packet_bytes = (int) ( p - fragment_packet_data );
 
             endpoint->config.transmit_packet_function( endpoint->config.context, endpoint->config.index, sequence, fragment_packet_data, fragment_packet_bytes );
+
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_SENT]++;
         }
 
         endpoint->free_function( endpoint->allocator_context, fragment_packet_data );
@@ -1047,7 +1049,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         if ( packet_header_bytes < 0 )
         {
             reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid packet. could not read packet header\n", endpoint->config.name );
-            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_PACKETS]++;
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID]++;
             return;
         }
 
@@ -1144,7 +1146,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         if ( fragment_header_bytes < 0 )
         {
             reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. could not read fragment header\n", endpoint->config.name );
-            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
             return;
         }
 
@@ -1159,7 +1161,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             if ( !reassembly_data )
             {
                 reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. could not insert in reassembly buffer (stale)\n", endpoint->config.name );
-                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
+                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
                 return;
             }
 
@@ -1179,7 +1181,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         {
             reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. fragment count mismatch. expected %d, got %d\n", 
                 endpoint->config.name, (int) reassembly_data->num_fragments_total, num_fragments );
-            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_INVALID_FRAGMENTS]++;
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
             return;
         }
 
@@ -1215,6 +1217,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_sequence_buffer_remove_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
         }
+
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED]++;
     }
 }
 
