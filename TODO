@@ -4,15 +4,9 @@ DONE
 
     Create stats program to test it.
 
+    Add prints for smoothed rtt
+
 TODO
-
-    It looks like the packet ack is off by one, eg. the first ack is always dropped?
-
-    If this is the case, fix it.
-
-    ------------------------------------------
-
-    Extend stats program to have packet delay, eg. simulator.
 
     ------------------------------------------
 

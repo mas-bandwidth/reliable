@@ -1091,8 +1091,10 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     {
                         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
 
-                        endpoint->rtt = sent_packet_data->time - endpoint->time;
-                        
+                        endpoint->rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+
+                        reliable_assert( endpoint->rtt >= 0.0 );
+
                         if ( fabs( endpoint->smoothed_rtt - endpoint->rtt ) > 0.00001 )
                         {
                             endpoint->smoothed_rtt += ( endpoint->rtt - endpoint->smoothed_rtt ) * endpoint->config.rtt_smoothing_factor;
@@ -1610,7 +1612,7 @@ static void test_acks()
     context.sender = reliable_endpoint_create( &sender_config, time );
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
-    double delta_time = 0.1;
+    double delta_time = 0.01;
 
     int i;
     for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS; ++i )

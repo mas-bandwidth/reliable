@@ -239,7 +239,6 @@ int main( int argc, char ** argv )
 
     signal( SIGINT, interrupt_handler );
 
-    double time = 0.0;
     double delta_time = 0.1;
 
     if ( num_iterations > 0 )

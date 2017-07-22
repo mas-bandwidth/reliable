@@ -228,10 +228,11 @@ void stats_iteration( double time )
 
     RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( global_context.client );
 
-    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked\n", 
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %.1f\n", 
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
-        counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED] );
+        counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
+        reliable_endpoint_smoothed_rtt( global_context.client ) );
 
     time += 0.01;
 }
@@ -247,7 +248,6 @@ int main( int argc, char ** argv )
 
     signal( SIGINT, interrupt_handler );
 
-    double time = 0.0;
     double delta_time = 0.1;
 
     if ( num_iterations > 0 )
