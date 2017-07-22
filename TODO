@@ -1,0 +1,11 @@
+DONE
+
+    ...
+
+TODO
+
+    Implement RTT estimate
+
+    Implement jitter estimate
+
+    Implement packet loss estimate
