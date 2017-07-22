@@ -8,8 +8,22 @@ DONE
 
 TODO
 
-    ------------------------------------------
-
     Implement jitter estimate
 
+    To implement this correctly, only consider jitter on packets that are in sequence.
+
+    So for example, if an ack comes in for a packet, and the previous sequence number has already been acked, then we have the time between the packets at send.
+
+    Then we can look at the time between ack for these packets, and use this to calculate jitter from receiver back to sender, which is actually a true one way jitter.
+
+    I think this is correct, and then we just smooth this the same way rtt is being smoothed.
+
+    ------------
+
     Implement packet loss estimate
+
+    Algorithm for this should be to look at the end of the sequence buffer for sent packets, and whenever it is advanced past an unacked packet, that counts as a lost packet.
+
+    This should be reasonably straightforward, provided that insertions in the sent packet buffer are well controlled (they are...)
+
+    ------------
