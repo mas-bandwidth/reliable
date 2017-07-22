@@ -484,7 +484,10 @@ struct reliable_endpoint_t
     struct reliable_config_t config;
     double time;
     float rtt;
+    float jitter;
     float smoothed_rtt;
+    float smoothed_jitter;
+    float smoothed_packet_loss;
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
@@ -1092,9 +1095,17 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
                         reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
 
-                    if ( sent_packet_data && !sent_packet_data->acked )
+                    if ( sent_packet_data && !sent_packet_data->acked && endpoint->num_acks < endpoint->config.ack_buffer_size )
                     {
+                        endpoint->acks[endpoint->num_acks++] = ack_sequence;
+
+                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
+                        
+                        sent_packet_data->acked = 1;
+
                         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
+
+                        // update rtt estimate
 
                         endpoint->rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
 
@@ -1108,14 +1119,18 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         {
                             endpoint->smoothed_rtt = endpoint->rtt;
                         }
-                      
-                        if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
-                        {
-                            endpoint->acks[endpoint->num_acks++] = ack_sequence;
-                            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
-                        }
-                        
-                        sent_packet_data->acked = 1;
+
+                        // update jitter estimate
+
+                        // first, see if the previous sequence # has been received, if not, skip
+
+                        // if previous packet sequence # received, calculate time between two packets @ send
+
+                        // now calculate time between two packets at receive.
+
+                        // the difference between these two is the instantaneous jitter.
+
+                        // now smooth it! :D
                     }
                 }
                 ack_bits >>= 1;
@@ -1286,13 +1301,19 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
-    return endpoint->rtt;
+    return endpoint->smoothed_rtt;
 }
 
-float reliable_endpoint_smoothed_rtt( struct reliable_endpoint_t * endpoint )
+float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
-    return endpoint->smoothed_rtt;
+    return endpoint->smoothed_jitter;
+}
+
+float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->smoothed_packet_loss;
 }
 
 RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint )

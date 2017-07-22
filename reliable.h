@@ -123,7 +123,9 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 
 float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint );
 
-float reliable_endpoint_smoothed_rtt( struct reliable_endpoint_t * endpoint );
+float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint );
+
+float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint );
 
 RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint );
 
