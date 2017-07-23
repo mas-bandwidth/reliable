@@ -526,7 +526,7 @@ void reliable_default_config( struct reliable_config_t * config )
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
-    config->rtt_smoothing_factor = 0.1f;
+    config->rtt_smoothing_factor = 0.0025f;
     config->packet_loss_smoothing_factor = 0.1f;
 }
 
@@ -1096,13 +1096,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
                         float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
                         reliable_assert( rtt >= 0.0 );
-                        if ( fabs( endpoint->rtt - rtt ) > 0.00001 )
+                        if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
                         {
-                            endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
+                            endpoint->rtt = rtt;
                         }
                         else
                         {
-                            endpoint->rtt = rtt;
+                            endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
                         }
                     }
                 }
