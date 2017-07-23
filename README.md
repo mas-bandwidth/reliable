@@ -22,7 +22,7 @@ It has no networking support, and no opinion on what topology you should use. It
 
 If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
 
-If you would like something more high-level that implements reliable-ordered messages on top of reliable.io, try [yojimbo](http://libyojimbo.com).
+If you want something higher level that implements reliable-ordered messages on top of reliable.io, try [yojimbo](http://libyojimbo.com).
 
 # Author
 
