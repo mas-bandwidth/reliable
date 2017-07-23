@@ -1,6 +1,6 @@
 [![Travis Build Status](https://travis-ci.org/networkprotocol/reliable.io.svg?branch=master)](https://travis-ci.org/networkprotocol/reliable.io)
 
-# reliable.io
+# Introduction
 
 **reliable.io** is a simple reliability layer for UDP-based protocols.
 
@@ -16,7 +16,9 @@ It has the following features:
 
 # Usage
 
-**reliable.io** is a low-level library which is designed to be used with your existing network layer. It has no networking support, and no opinion on what topology you should use. Its only requirement is that you have one reliable.io endpoint on each side of a connection.
+**reliable.io** is a low-level library which is designed to be used with your existing network layer. 
+
+It has no networking support, and no opinion on what topology you should use. Its only requirement is that you have one reliable.io endpoint on each side of a connection.
 
 If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
 
