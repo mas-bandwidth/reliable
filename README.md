@@ -16,7 +16,7 @@ It has the following features:
 
 # Usage
 
-**reliable.io** is a low-level library which is designed to be used with your existing network layer. 
+**reliable.io** is a low-level library that is designed to be used with your existing network layer. 
 
 It has no networking support, and no opinion on what topology you should use. Its only requirement is that you have one reliable.io endpoint on each side of a connection.
 
