@@ -14,10 +14,10 @@ DONE
 
     RTT estimate is not smooth. Make it better be only considering RTT on packets that are subsequent receives, eg. try to avoid dropped packets affecting the RTT estimate.
 
-    ^--- Works great!
+    Various fixes for linux, windows etc.
+
+    All done. Ready for 1.0 release!
 
 TODO
 
-    Next step is to integrate this into yojimbo and create a client/server test that prints out RTT and packet loss estimate every few seconds.
-
-    This way I can test between a client and real server running on linode.
+    Adjust interface in combination with netcode.io to eliminate buffer copies when reading and writing packets.
