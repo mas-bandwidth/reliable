@@ -1098,7 +1098,6 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         {
                             float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
                             reliable_assert( rtt >= 0.0 );
-                            endpoint->rtt = rtt;
                             if ( fabs( endpoint->rtt - rtt ) > 0.00001 )
                             {
                                 endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
@@ -1273,7 +1272,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 {
     reliable_assert( endpoint );
     endpoint->time = time;
-    uint32_t base_sequence = endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1;
+    uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
     int i;
     int num_dropped = 0;
     int num_samples = endpoint->config.sent_packets_buffer_size / 2;
