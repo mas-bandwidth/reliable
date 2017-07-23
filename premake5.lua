@@ -18,6 +18,8 @@ solution "reliable"
         optimize "Speed"
         defines { "NDEBUG" }
         links { release_libs }
+    configuration { "gmake" }
+        linkoptions { "-lm" }    
         
 project "test"
     files { "test.cpp" }
