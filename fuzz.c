@@ -98,8 +98,6 @@ void fuzz_shutdown()
 
 void fuzz_iteration( double time )
 {
-    (void) time;
-
     printf( "." );
     fflush( stdout );
 
@@ -116,8 +114,6 @@ void fuzz_iteration( double time )
     reliable_endpoint_update( endpoint, time );
 
     reliable_endpoint_clear_acks( endpoint );
-
-    time += 0.01;
 }
 
 int main( int argc, char ** argv )

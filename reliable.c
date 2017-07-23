@@ -1077,6 +1077,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_assert( received_packet_data );
 
+            (void) received_packet_data;
+
             int i;
             for ( i = 0; i < 32; ++i )
             {

@@ -204,8 +204,6 @@ void soak_shutdown()
 
 void soak_iteration( double time )
 {
-    (void) time;
-
     uint8_t packet_data[MAX_PACKET_BYTES];
     memset( packet_data, 0, MAX_PACKET_BYTES );
     int packet_bytes;
@@ -224,8 +222,6 @@ void soak_iteration( double time )
 
     reliable_endpoint_clear_acks( global_context.client );
     reliable_endpoint_clear_acks( global_context.server );
-
-    time += 0.01;
 }
 
 int main( int argc, char ** argv )
