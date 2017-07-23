@@ -1094,7 +1094,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                         sent_packet_data->acked = 1;
 
-                        float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                        float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
                         reliable_assert( rtt >= 0.0 );
                         if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
                         {

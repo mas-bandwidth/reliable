@@ -49,7 +49,7 @@ int random_int( int a, int b )
     return result;
 }
 
-double time = 100.0;
+double global_time = 100.0;
 
 struct reliable_endpoint_t * endpoint;
 
@@ -84,7 +84,7 @@ void fuzz_initialize()
     config.transmit_packet_function = &test_transmit_packet_function;
     config.process_packet_function = &test_process_packet_function;
 
-    endpoint = reliable_endpoint_create( &config, time );
+    endpoint = reliable_endpoint_create( &config, global_time );
 }
 
 void fuzz_shutdown()
@@ -129,7 +129,6 @@ int main( int argc, char ** argv )
 
     signal( SIGINT, interrupt_handler );
 
-    double time = 0.0;
     double delta_time = 0.1;
 
     if ( num_iterations > 0 )
@@ -140,18 +139,18 @@ int main( int argc, char ** argv )
             if ( quit )
                 break;
 
-            fuzz_iteration( time );
+            fuzz_iteration( global_time );
 
-            time += delta_time;
+            global_time += delta_time;
         }
     }
     else
     {
         while ( !quit )
         {
-            fuzz_iteration( time );
+            fuzz_iteration( global_time );
 
-            time += delta_time;
+            global_time += delta_time;
         }
     }
 
