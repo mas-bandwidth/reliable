@@ -526,7 +526,7 @@ void reliable_default_config( struct reliable_config_t * config )
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
-    config->rtt_smoothing_factor = 0.1f;
+    config->rtt_smoothing_factor = 0.0025f;
     config->packet_loss_smoothing_factor = 0.1f;
 }
 
@@ -1070,8 +1070,6 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         {
             reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet %d successful\n", endpoint->config.name, sequence );
 
-            int sequential = sequence == endpoint->received_packets->sequence;
-
             struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) 
                 reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
 
@@ -1096,19 +1094,15 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                         sent_packet_data->acked = 1;
 
-                        if ( i == 0 && sequential )
+                        float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                        reliable_assert( rtt >= 0.0 );
+                        if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
                         {
-                            float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
-                            reliable_assert( rtt >= 0.0 );
                             endpoint->rtt = rtt;
-                            if ( fabs( endpoint->rtt - rtt ) > 0.00001 )
-                            {
-                                endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
-                            }
-                            else
-                            {
-                                endpoint->rtt = rtt;
-                            }
+                        }
+                        else
+                        {
+                            endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
                         }
                     }
                 }
@@ -1275,7 +1269,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 {
     reliable_assert( endpoint );
     endpoint->time = time;
-    uint32_t base_sequence = endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1;
+    uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
     int i;
     int num_dropped = 0;
     int num_samples = endpoint->config.sent_packets_buffer_size / 2;
