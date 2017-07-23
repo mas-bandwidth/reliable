@@ -6,6 +6,10 @@ DONE
 
     Add prints for smoothed rtt
 
+    Can't do jitter estimate because we don't include time in sent packets.
+
+    Jitter estimate needs to be done at some level above reliable.io, where we know the time value per-packet.
+
 TODO
 
     Implement jitter estimate

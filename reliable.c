@@ -484,10 +484,7 @@ struct reliable_endpoint_t
     struct reliable_config_t config;
     double time;
     float rtt;
-    float jitter;
-    float smoothed_rtt;
-    float smoothed_jitter;
-    float smoothed_packet_loss;
+    float packet_loss;
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
@@ -529,8 +526,8 @@ void reliable_default_config( struct reliable_config_t * config )
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
-    config->rtt_smoothing_factor = 0.9f;
-    config->jitter_smoothing_factor = 0.9f;
+    config->rtt_smoothing_factor = 0.1f;
+    config->packet_loss_smoothing_factor = 0.1f;
 }
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time )
@@ -1097,40 +1094,27 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
                     if ( sent_packet_data && !sent_packet_data->acked && endpoint->num_acks < endpoint->config.ack_buffer_size )
                     {
+                        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
                         endpoint->acks[endpoint->num_acks++] = ack_sequence;
-
                         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
-                        
                         sent_packet_data->acked = 1;
 
-                        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
-
-                        // update rtt estimate
-
-                        endpoint->rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
-
-                        reliable_assert( endpoint->rtt >= 0.0 );
-
-                        if ( fabs( endpoint->smoothed_rtt - endpoint->rtt ) > 0.00001 )
+                        if ( i == 0 )
                         {
-                            endpoint->smoothed_rtt += ( endpoint->rtt - endpoint->smoothed_rtt ) * endpoint->config.rtt_smoothing_factor;
+                            float rtt = ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                            reliable_assert( rtt >= 0.0 );
+                            endpoint->rtt = rtt;
+                            /*
+                            if ( fabs( endpoint->rtt - rtt ) > 0.00001 )
+                            {
+                                endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
+                            }
+                            else
+                            {
+                                endpoint->rtt = rtt;
+                            }
+                            */
                         }
-                        else
-                        {
-                            endpoint->smoothed_rtt = endpoint->rtt;
-                        }
-
-                        // update jitter estimate
-
-                        // first, see if the previous sequence # has been received, if not, skip
-
-                        // if previous packet sequence # received, calculate time between two packets @ send
-
-                        // now calculate time between two packets at receive.
-
-                        // the difference between these two is the instantaneous jitter.
-
-                        // now smooth it! :D
                     }
                 }
                 ack_bits >>= 1;
@@ -1296,24 +1280,41 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 {
     reliable_assert( endpoint );
     endpoint->time = time;
+    uint32_t base_sequence = endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1;
+    int i;
+    int num_dropped = 0;
+    int num_samples = endpoint->config.sent_packets_buffer_size / 2;
+    for ( i = 0; i < num_samples; ++i )
+    {
+        uint16_t sequence = (uint16_t) ( base_sequence + i );
+        struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
+            reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+        if ( sent_packet_data && !sent_packet_data->acked )
+        {
+            num_dropped++;
+        }
+    }
+    float packet_loss = ( (float) num_dropped ) / ( (float) num_samples ) * 100.0f;
+    if ( fabs( endpoint->packet_loss - packet_loss ) > 0.00001 )
+    {
+        endpoint->packet_loss += ( packet_loss - endpoint->packet_loss ) * endpoint->config.packet_loss_smoothing_factor;
+    }
+    else
+    {
+        endpoint->packet_loss = packet_loss;
+    }
 }
 
 float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
-    return endpoint->smoothed_rtt;
-}
-
-float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint )
-{
-    reliable_assert( endpoint );
-    return endpoint->smoothed_jitter;
+    return endpoint->rtt;
 }
 
 float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
-    return endpoint->smoothed_packet_loss;
+    return endpoint->packet_loss;
 }
 
 RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint )

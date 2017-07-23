@@ -66,11 +66,8 @@ void test_transmit_packet_function( void * _context, int index, uint16_t sequenc
 
     struct test_context_t * context = (struct test_context_t*) _context;
 
-    // todo: some steady state packet loss
-    /*
-    if ( random_int(0,100) < 5 )
+    if ( ( sequence % 5 ) == 0 )
         return;
-        */
 
     if ( index == 0 )
     {
@@ -205,8 +202,6 @@ void stats_shutdown()
 
 void stats_iteration( double time )
 {
-    (void) time;
-
     uint8_t packet_data[MAX_PACKET_BYTES];
     memset( packet_data, 0, MAX_PACKET_BYTES );
     int packet_bytes;
@@ -228,15 +223,12 @@ void stats_iteration( double time )
 
     RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( global_context.client );
 
-    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %.1f | jitter = %.1f, packet loss = %.1f%%\n", 
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %.1f | packet loss = %.1f%%\n", 
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
         reliable_endpoint_rtt( global_context.client ),
-        reliable_endpoint_jitter( global_context.client ),
         reliable_endpoint_packet_loss( global_context.client ) );
-
-    time += 0.01;
 }
 
 int main( int argc, char ** argv )
@@ -250,7 +242,7 @@ int main( int argc, char ** argv )
 
     signal( SIGINT, interrupt_handler );
 
-    double delta_time = 0.1;
+    double delta_time = 0.01;
 
     if ( num_iterations > 0 )
     {

@@ -93,7 +93,7 @@ struct reliable_config_t
     int received_packets_buffer_size;
     int fragment_reassembly_buffer_size;
     float rtt_smoothing_factor;
-    float jitter_smoothing_factor;
+    float packet_loss_smoothing_factor;
     void (*transmit_packet_function)(void*,int,uint16_t,uint8_t*,int);
     int (*process_packet_function)(void*,int,uint16_t,uint8_t*,int);
     void * allocator_context;
