@@ -12,13 +12,15 @@ It has the following features:
 
 2. Packet fragmentation and re-assembly (so you can send packets larger than MTU)
 
-3. Estimates for round-trip time and packet loss (not implemented yet, but coming very soon)
+3. Estimates for round-trip time and packet loss
 
-reliable.io is a very low-level library and is designed to be used with your existing network layer. It has no networking support, and no opinion on what topology you should use. Its only requirement is that you have one reliable.io endpoint on each side of a connection.
+# Usage
+
+**reliable.io** is a low-level library which is designed to be used with your existing network layer. It has no networking support, and no opinion on what topology you should use. Its only requirement is that you have one reliable.io endpoint on each side of a connection.
 
 If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
 
-If you would like something more high-level that implements reliable-ordered messages, try [yojimbo](http://libyojimbo.com).
+If you would like something more high-level that implements reliable-ordered messages on top of reliable.io, try [yojimbo](http://libyojimbo.com).
 
 # Author
 
