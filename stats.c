@@ -223,12 +223,12 @@ void stats_iteration( double time )
 
     RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( global_context.client );
 
-    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %.1f | packet loss = %.1f%%\n", 
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %dms | packet loss = %d%%\n", 
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
-        reliable_endpoint_rtt( global_context.client ),
-        reliable_endpoint_packet_loss( global_context.client ) );
+        (int) reliable_endpoint_rtt( global_context.client ),
+        (int) floor( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ) );
 }
 
 int main( int argc, char ** argv )
