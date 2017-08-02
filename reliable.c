@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <inttypes.h>
+#include <float.h>
 #include <math.h>
 
 #ifndef RELIABLE_ENABLE_TESTS
@@ -499,13 +500,15 @@ struct reliable_endpoint_t
 
 struct reliable_sent_packet_data_t
 {
-    uint8_t acked;
     double time;
+    uint32_t acked : 1;
+    uint32_t packet_bytes : 31;
 };
 
 struct reliable_received_packet_data_t
 {
-    uint8_t dummy;
+    double time;
+    uint32_t packet_bytes;
 };
 
 void reliable_default_config( struct reliable_config_t * config )
@@ -731,8 +734,9 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
     reliable_assert( sent_packet_data );
 
-    sent_packet_data->acked = 0;
     sent_packet_data->time = endpoint->time;
+    sent_packet_data->packet_bytes = endpoint->config.packet_header_size + packet_bytes;
+    sent_packet_data->acked = 0;
 
     if ( packet_bytes <= endpoint->config.fragment_above )
     {
@@ -1080,7 +1084,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_assert( received_packet_data );
 
-            (void) received_packet_data;
+            received_packet_data->time = endpoint->time;
+            received_packet_data->packet_bytes = endpoint->config.packet_header_size + packet_bytes;
 
             int i;
             for ( i = 0; i < 32; ++i )
@@ -1273,29 +1278,157 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
 void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double time )
 {
     reliable_assert( endpoint );
+
     endpoint->time = time;
-    uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
-    int i;
-    int num_dropped = 0;
-    int num_samples = endpoint->config.sent_packets_buffer_size / 2;
-    for ( i = 0; i < num_samples; ++i )
+    
+    // calculate packet loss
     {
-        uint16_t sequence = (uint16_t) ( base_sequence + i );
-        struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
-            reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
-        if ( sent_packet_data && !sent_packet_data->acked )
+        uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
+        int i;
+        int num_dropped = 0;
+        int num_samples = endpoint->config.sent_packets_buffer_size / 2;
+        for ( i = 0; i < num_samples; ++i )
         {
-            num_dropped++;
+            uint16_t sequence = (uint16_t) ( base_sequence + i );
+            struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
+                reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+            if ( sent_packet_data && !sent_packet_data->acked )
+            {
+                num_dropped++;
+            }
+        }
+        float packet_loss = ( (float) num_dropped ) / ( (float) num_samples ) * 100.0f;
+        if ( fabs( endpoint->packet_loss - packet_loss ) > 0.00001 )
+        {
+            endpoint->packet_loss += ( packet_loss - endpoint->packet_loss ) * endpoint->config.packet_loss_smoothing_factor;
+        }
+        else
+        {
+            endpoint->packet_loss = packet_loss;
         }
     }
-    float packet_loss = ( (float) num_dropped ) / ( (float) num_samples ) * 100.0f;
-    if ( fabs( endpoint->packet_loss - packet_loss ) > 0.00001 )
+
+    // calculate sent bandwidth
     {
-        endpoint->packet_loss += ( packet_loss - endpoint->packet_loss ) * endpoint->config.packet_loss_smoothing_factor;
+        uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
+        int i;
+        int bytes_sent = 0;
+        double start_time = FLT_MAX;
+        double finish_time = 0.0;
+        int num_samples = endpoint->config.sent_packets_buffer_size / 2;
+        for ( i = 0; i < num_samples; ++i )
+        {
+            uint16_t sequence = (uint16_t) ( base_sequence + i );
+            struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
+                reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+            if ( !sent_packet_data )
+            {
+                continue;
+            }
+            bytes_sent += sent_packet_data->packet_bytes;
+            if ( sent_packet_data->time < start_time )
+            {
+                start_time = sent_packet_data->time;
+            }
+            if ( sent_packet_data->time > finish_time )
+            {
+                finish_time = sent_packet_data->time;
+            }
+        }
+        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        {
+            float sent_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            if ( fabs( endpoint->sent_bandwidth_kbps - sent_bandwidth_kbps ) > 0.00001 )
+            {
+                endpoint->sent_bandwidth_kbps += ( sent_bandwidth_kbps - endpoint->sent_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
+            }
+            else
+            {
+                endpoint->sent_bandwidth_kbps = sent_bandwidth_kbps;
+            }
+        }
     }
-    else
+
+    // calculate received bandwidth
     {
-        endpoint->packet_loss = packet_loss;
+        uint32_t base_sequence = ( endpoint->received_packets->sequence - endpoint->config.received_packets_buffer_size + 1 ) + 0xFFFF;
+        int i;
+        int bytes_sent = 0;
+        double start_time = FLT_MAX;
+        double finish_time = 0.0;
+        int num_samples = endpoint->config.received_packets_buffer_size / 2;
+        for ( i = 0; i < num_samples; ++i )
+        {
+            uint16_t sequence = (uint16_t) ( base_sequence + i );
+            struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) 
+                reliable_sequence_buffer_find( endpoint->received_packets, sequence );
+            if ( !received_packet_data )
+            {
+                continue;
+            }
+            bytes_sent += received_packet_data->packet_bytes;
+            if ( received_packet_data->time < start_time )
+            {
+                start_time = received_packet_data->time;
+            }
+            if ( received_packet_data->time > finish_time )
+            {
+                finish_time = received_packet_data->time;
+            }
+        }
+        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        {
+            float received_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            if ( fabs( endpoint->received_bandwidth_kbps - received_bandwidth_kbps ) > 0.00001 )
+            {
+                endpoint->received_bandwidth_kbps += ( received_bandwidth_kbps - endpoint->received_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
+            }
+            else
+            {
+                endpoint->received_bandwidth_kbps = received_bandwidth_kbps;
+            }
+        }
+    }
+
+    // calculate acked bandwidth
+    {
+        uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
+        int i;
+        int bytes_sent = 0;
+        double start_time = FLT_MAX;
+        double finish_time = 0.0;
+        int num_samples = endpoint->config.sent_packets_buffer_size / 2;
+        for ( i = 0; i < num_samples; ++i )
+        {
+            uint16_t sequence = (uint16_t) ( base_sequence + i );
+            struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
+                reliable_sequence_buffer_find( endpoint->sent_packets, sequence );
+            if ( !sent_packet_data || !sent_packet_data->acked )
+            {
+                continue;
+            }
+            bytes_sent += sent_packet_data->packet_bytes;
+            if ( sent_packet_data->time < start_time )
+            {
+                start_time = sent_packet_data->time;
+            }
+            if ( sent_packet_data->time > finish_time )
+            {
+                finish_time = sent_packet_data->time;
+            }
+        }
+        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        {
+            float acked_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            if ( fabs( endpoint->acked_bandwidth_kbps - acked_bandwidth_kbps ) > 0.00001 )
+            {
+                endpoint->acked_bandwidth_kbps += ( acked_bandwidth_kbps - endpoint->acked_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
+            }
+            else
+            {
+                endpoint->acked_bandwidth_kbps = acked_bandwidth_kbps;
+            }
+        }
     }
 }
 

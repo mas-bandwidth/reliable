@@ -32,7 +32,7 @@
 #include <signal.h>
 #include <inttypes.h>
 
-#define MAX_PACKET_BYTES 1024
+#define MAX_PACKET_BYTES 290
 
 static volatile int quit = 0;
 
@@ -82,7 +82,7 @@ void test_transmit_packet_function( void * _context, int index, uint16_t sequenc
 
 int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
 {
-    int packet_bytes = ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2;
+    int packet_bytes = MAX_PACKET_BYTES;
     assert( packet_bytes >= 2 );
     assert( packet_bytes <= MAX_PACKET_BYTES );
     packet_data[0] = (uint8_t) ( sequence & 0xFF );
@@ -122,12 +122,10 @@ do                                                                              
 
 void check_packet_data( uint8_t * packet_data, int packet_bytes )
 {
-    assert( packet_bytes >= 2 );
-    assert( packet_bytes <= MAX_PACKET_BYTES );
+    assert( packet_bytes == MAX_PACKET_BYTES );
     uint16_t sequence = 0;
     sequence |= (uint16_t) packet_data[0];
     sequence |= ( (uint16_t) packet_data[1] ) << 8;
-    check( packet_bytes == ( ( (int)sequence * 1023 ) % ( MAX_PACKET_BYTES - 2 ) ) + 2 );
     int i;
     for ( i = 2; i < packet_bytes; ++i )
     {
@@ -224,12 +222,18 @@ void stats_iteration( double time )
 
     RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( global_context.client );
 
-    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %dms | packet loss = %d%%\n", 
+    float sent_bandwidth_kbps, received_bandwidth_kbps, acked_bandwidth_kbps;
+    reliable_endpoint_bandwidth( global_context.client, &sent_bandwidth_kbps, &received_bandwidth_kbps, &acked_bandwidth_kbps );
+
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %dms | packet loss = %d%% | sent = %dkbps | recv = %dkbps | acked = %dkbps\n", 
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
         (int) reliable_endpoint_rtt( global_context.client ),
-        (int) floor( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ) );
+        (int) floor( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ),
+        (int) sent_bandwidth_kbps,
+        (int) received_bandwidth_kbps,
+        (int) acked_bandwidth_kbps );
 }
 
 int main( int argc, char ** argv )

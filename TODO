@@ -18,6 +18,8 @@ DONE
 
     All done. Ready for 1.0 release!
 
+    Added bandwidth stats, eg. sent bandwidth, received bandwidth and acked bandwidth per-endpoint.
+
 TODO
 
     Adjust interface in combination with netcode.io to eliminate buffer copies when reading and writing packets.
