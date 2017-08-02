@@ -94,6 +94,8 @@ struct reliable_config_t
     int fragment_reassembly_buffer_size;
     float rtt_smoothing_factor;
     float packet_loss_smoothing_factor;
+    float bandwidth_smoothing_factor;
+    int packet_header_size;
     void (*transmit_packet_function)(void*,int,uint16_t,uint8_t*,int);
     int (*process_packet_function)(void*,int,uint16_t,uint8_t*,int);
     void * allocator_context;
@@ -123,9 +125,9 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 
 float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint );
 
-float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint );
-
 float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint );
+
+void reliable_endpoint_bandwidth( struct reliable_endpoint_t * endpoint, float * sent_bandwidth_kbps, float * received_bandwidth_kbps, float * acked_bandwidth_kpbs );
 
 RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint );
 

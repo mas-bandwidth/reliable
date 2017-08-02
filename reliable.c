@@ -485,6 +485,9 @@ struct reliable_endpoint_t
     double time;
     float rtt;
     float packet_loss;
+    float sent_bandwidth_kbps;
+    float received_bandwidth_kbps;
+    float acked_bandwidth_kbps;
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
@@ -528,6 +531,8 @@ void reliable_default_config( struct reliable_config_t * config )
     config->fragment_reassembly_buffer_size = 64;
     config->rtt_smoothing_factor = 0.0025f;
     config->packet_loss_smoothing_factor = 0.1f;
+    config->bandwidth_smoothing_factor = 0.1f;
+    config->packet_header_size = 28;        // note: UDP over IPv4 = 20 + 8 bytes, UDP over IPv6 = 40 + 8 bytes
 }
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time )
@@ -1304,6 +1309,17 @@ float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
     return endpoint->packet_loss;
+}
+
+void reliable_endpoint_bandwidth( struct reliable_endpoint_t * endpoint, float * sent_bandwidth_kbps, float * received_bandwidth_kbps, float * acked_bandwidth_kbps )
+{
+    reliable_assert( endpoint );
+    reliable_assert( sent_bandwidth_kbps );
+    reliable_assert( acked_bandwidth_kbps );
+    reliable_assert( received_bandwidth_kbps );
+    *sent_bandwidth_kbps = endpoint->sent_bandwidth_kbps;
+    *received_bandwidth_kbps = endpoint->received_bandwidth_kbps;
+    *acked_bandwidth_kbps = endpoint->acked_bandwidth_kbps;
 }
 
 RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t * endpoint )
