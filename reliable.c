@@ -1337,7 +1337,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
         }
         if ( start_time != FLT_MAX && finish_time != 0.0 )
         {
-            float sent_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            float sent_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->sent_bandwidth_kbps - sent_bandwidth_kbps ) > 0.00001 )
             {
                 endpoint->sent_bandwidth_kbps += ( sent_bandwidth_kbps - endpoint->sent_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
@@ -1378,7 +1378,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
         }
         if ( start_time != FLT_MAX && finish_time != 0.0 )
         {
-            float received_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            float received_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->received_bandwidth_kbps - received_bandwidth_kbps ) > 0.00001 )
             {
                 endpoint->received_bandwidth_kbps += ( received_bandwidth_kbps - endpoint->received_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
@@ -1419,7 +1419,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
         }
         if ( start_time != FLT_MAX && finish_time != 0.0 )
         {
-            float acked_bandwidth_kbps = ( (float) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f;
+            float acked_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->acked_bandwidth_kbps - acked_bandwidth_kbps ) > 0.00001 )
             {
                 endpoint->acked_bandwidth_kbps += ( acked_bandwidth_kbps - endpoint->acked_bandwidth_kbps ) * endpoint->config.bandwidth_smoothing_factor;
