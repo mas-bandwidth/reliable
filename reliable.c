@@ -82,7 +82,9 @@ void reliable_printf( int level, RELIABLE_CONST char * format, ... )
         return;
     va_list args;
     va_start( args, format );
-    vprintf( format, args );
+    char buffer[4*1024];
+    vsprintf( buffer, format, args );
+    printf_function( "%s", level, buffer );
     va_end( args );
 }
 
@@ -1091,10 +1093,10 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             for ( i = 0; i < 32; ++i )
             {
                 if ( ack_bits & 1 )
-                {                    
+                {
                     uint16_t ack_sequence = ack - ((uint16_t)i);
-                    
-                    struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
+
+                    struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*)
                         reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
 
                     if ( sent_packet_data && !sent_packet_data->acked && endpoint->num_acks < endpoint->config.ack_buffer_size )
@@ -1306,6 +1308,8 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
         {
             endpoint->packet_loss = packet_loss;
         }
+
+        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "INTERNAL_LOG_SPECIAL: reliable_endpoint_update: packet loss calculation at time %f (num_dropped: %d, num_samples: %d, packet_loss: %f)", time, num_dropped, num_samples, packet_loss);
     }
 
     // calculate sent bandwidth
@@ -1346,6 +1350,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
             {
                 endpoint->sent_bandwidth_kbps = sent_bandwidth_kbps;
             }
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "INTERNAL_LOG_SPECIAL: reliable_endpoint_update: sent bandwidth at time %f (start_time: %d, finish_time: %d, bytes_sent: %d, sent_bandwidth_kbps: %f)", time, start_time, finish_time, bytes_sent, sent_bandwidth_kbps);
         }
     }
 
@@ -1387,6 +1392,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
             {
                 endpoint->received_bandwidth_kbps = received_bandwidth_kbps;
             }
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "INTERNAL_LOG_SPECIAL: reliable_endpoint_update: receive bandwidth at time %f (start_time: %d, finish_time: %d, bytes_sent: %d, received_bandwidth_kbps: %f)", time, start_time, finish_time, bytes_sent, received_bandwidth_kbps);
         }
     }
 
@@ -1428,6 +1434,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
             {
                 endpoint->acked_bandwidth_kbps = acked_bandwidth_kbps;
             }
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "INTERNAL_LOG_SPECIAL: reliable_endpoint_update: acked bandwidth at time %f (start_time: %d, finish_time: %d, bytes_sent: %d, acked_bandwidth_kbps: %f)", time, start_time, finish_time, bytes_sent, acked_bandwidth_kbps);
         }
     }
 }
