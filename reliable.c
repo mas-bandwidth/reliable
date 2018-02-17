@@ -207,7 +207,7 @@ void reliable_sequence_buffer_remove_entries( struct reliable_sequence_buffer_t 
     reliable_assert( sequence_buffer );
     if ( finish_sequence < start_sequence ) 
     {
-        finish_sequence += 65535;
+        finish_sequence += 65536;
     }
     if ( finish_sequence - start_sequence < sequence_buffer->num_entries )
     {
