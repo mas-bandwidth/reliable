@@ -24,6 +24,8 @@ If you would like a secure client/server communications layer to use with reliab
 
 If you want something higher level that implements reliable-ordered messages on top of reliable.io, try [yojimbo](http://libyojimbo.com).
 
+There is also a port of reliable.io to JavaScript here: https://github.com/mreinstein/reliable.io.js
+
 # Author
 
 The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler), a recognized expert in the field of game network programming with over 15 years experience in the game industry.
