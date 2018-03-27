@@ -82,7 +82,9 @@ void reliable_printf( int level, RELIABLE_CONST char * format, ... )
         return;
     va_list args;
     va_start( args, format );
-    vprintf( format, args );
+    char buffer[4*1024];
+    vsprintf( buffer, format, args );
+    printf_function( "%s", buffer );
     va_end( args );
 }
 
