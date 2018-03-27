@@ -8,9 +8,10 @@
 *.vcxproj.filters
 *.sln
 
-# Makefiles
-Makefile
-*.make
+# Binary files
+*.o
+*.dylib
+*.so
 
 # Misc
 *.txt
