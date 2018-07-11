@@ -4,10 +4,6 @@
 
 **reliable.io** is a reliability layer for UDP protocols where there is a continuous bidirectional flow of packets.
 
-For example, real-time action games like first person shooters.
-
-# Overview
-
 It has the following features: 
 
 1. Identifies which packets were received by the other side (acks)
