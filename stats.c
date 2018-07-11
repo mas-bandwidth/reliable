@@ -181,7 +181,7 @@ void stats_initialize()
     strcpy( server_config.name, "server" );
 #endif
     server_config.context = &global_context;
-    client_config.index = 1;
+    server_config.index = 1;
     server_config.transmit_packet_function = &test_transmit_packet_function;
     server_config.process_packet_function = &test_process_packet_function;
 
