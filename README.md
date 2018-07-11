@@ -7,7 +7,7 @@
 It has the following features: 
 
 1. Identifies which packets were received by the other side (acks)
-2. Packet fragmentation and re-assembly (so you can send packets larger than MTU)
+2. Packet fragmentation and re-assembly (send packets larger than MTU)
 3. Provides estimates for round-trip time and packet loss
 
 # Author
