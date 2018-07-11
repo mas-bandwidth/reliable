@@ -2,23 +2,17 @@
 
 # Introduction
 
-**reliable.io** is a reliability layer for UDP-based protocol where there is a bidirectional flow of packets, for example, real-time action games like first person shooters.
+**reliable.io** is a reliability layer for UDP protocols where there is a continuous bidirectional flow of packets.
+
+For example, real-time action games like first person shooters.
+
+# Overview
 
 It has the following features: 
 
 1. Identifies which packets were received by the other side (acks)
 2. Packet fragmentation and re-assembly (so you can send packets larger than MTU)
 3. Provides estimates for round-trip time and packet loss
-
-# Usage
-
-**reliable.io** is a low-level library that is designed to be used with your existing network layer. 
-
-If you would like a secure client/server communications layer to use with reliable.io, I recommend [netcode.io](http://www.netcode.io)
-
-If prefer something higher level that implements reliable-ordered messages on top of reliable.io, try [yojimbo](http://libyojimbo.com).
-
-There is also a port of reliable.io to JavaScript: https://github.com/mreinstein/reliable.io.js
 
 # Author
 
