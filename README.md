@@ -18,6 +18,20 @@ Glenn wrote an article series about the development of this library called [Buil
 
 Open source libraries by the same author include: [yojimbo](http://libyojimbo.com) and [netcode.io](http://netcode.io)
 
+# Source Code
+
+This repository holds the reference implementation of reliable.io in C.
+
+Other reliable.io repositories include:
+
+* [reliable.io Rust implementation](https://github.com/jaynus/reliable.io)
+
+# Contributors
+
+These people are awesome:
+
+* [Walter Pearce](https://github.com/jaynus) - Rust Implementation
+
 # Sponsors
 
 **reliable.io** is generously sponsored by:
