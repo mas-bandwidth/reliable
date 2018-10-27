@@ -2028,6 +2028,76 @@ void test_packets()
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
 }
+
+void test_sequence_buffer_rollover()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    memset( &context, 0, sizeof( context ) );
+    
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    sender_config.fragment_above = 500;
+    receiver_config.fragment_above = 500;
+
+#if defined(_MSC_VER)
+    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
+#else
+    strcpy( sender_config.name, "sender" );
+#endif
+    sender_config.context = &context;
+    sender_config.index = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+#if defined(_MSC_VER)
+    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
+#else
+    strcpy( receiver_config.name, "receiver" );
+#endif
+    receiver_config.context = &context;
+    receiver_config.index = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    double delta_time = 0.1;
+
+    int num_packets_sent = 0;
+    for (int i = 0; i <= 32767; ++i)
+    {
+        uint8_t packet_data[16];
+        int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
+        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+
+        ++num_packets_sent;
+    }
+    {
+        uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+        int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
+        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+
+        ++num_packets_sent;
+    }
+
+    RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
+
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == num_packets_sent );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] == 0 );
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -2047,6 +2117,7 @@ void reliable_test()
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
+        RUN_TEST( test_sequence_buffer_rollover );
     }
 }
 
