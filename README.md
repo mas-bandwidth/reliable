@@ -10,9 +10,11 @@ It has the following features:
 2. Packet fragmentation and re-assembly (send packets larger than MTU)
 3. Provides estimates for round-trip time and packet loss
 
+IMPORTANT: It does not resend dropped packets. It simply tells you which ones got through!
+
 # Author
 
-The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler), a recognized expert in the field of game network programming with over 15 years experience in the game industry.
+The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler).
 
 Glenn wrote an article series about the development of this library called [Building a Game Network Protocol](http://gafferongames.com/2016/05/10/building-a-game-network-protocol/).
 
