@@ -10,6 +10,8 @@ It has the following features:
 2. Packet fragmentation and reassembly with customizable MTU
 3. Estimates for round-trip time and packet loss
 
+reliable.io has been used in AAA game projects for several years now and is very stable.
+
 # Author
 
 The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler).
