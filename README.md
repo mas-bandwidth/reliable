@@ -6,9 +6,9 @@
 
 It has the following features: 
 
-1. Identify which packets were received by the other side
-2. Packet fragmentation and reassembly with customizable MTU
-3. Estimates for round-trip time and packet loss
+1. Identifies which packets are received by the other side
+2. Packet fragmentation and reassembly
+3. RTT and packet loss estimates
 
 reliable.io is stable and well tested having been used in AAA game projects for over 2 years now.
 
