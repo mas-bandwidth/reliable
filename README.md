@@ -2,15 +2,13 @@
 
 # Introduction
 
-**reliable.io** is a reliability layer for UDP protocols where there is a continuous bidirectional flow of packets.
+**reliable.io** is a packet acknowlegement system for UDP protocols.
 
 It has the following features: 
 
-1. Identifies which packets were received by the other side (acks)
-2. Packet fragmentation and re-assembly (send packets larger than MTU)
-3. Provides estimates for round-trip time and packet loss
-
-IMPORTANT: It does not resend dropped packets. It simply tells you which ones got through!
+1. Identify which packets were received by the other side
+2. Packet fragmentation and reassembly with customizable MTU
+3. Estimates for round-trip time and packet loss
 
 # Author
 
@@ -22,7 +20,7 @@ Open source libraries by the same author include: [yojimbo](http://libyojimbo.co
 
 # Source Code
 
-This repository holds the reference implementation of reliable.io in C.
+This repository holds the implementation of reliable.io in C.
 
 Other reliable.io repositories include:
 
@@ -36,7 +34,7 @@ These people are awesome:
 
 # Sponsors
 
-**reliable.io** is generously sponsored by:
+**reliable.io** was generously sponsored by:
 
 * **Gold Sponsors**
     * [Remedy Entertainment](http://www.remedygames.com/)
