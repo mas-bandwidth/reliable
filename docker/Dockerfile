@@ -6,16 +6,6 @@ WORKDIR /app
 
 RUN apt-get -y update && apt-get install -y wget make g++ dh-autoreconf pkg-config
 
-RUN wget https://github.com/jedisct1/libsodium/releases/download/1.0.10/libsodium-1.0.10.tar.gz && \
-    tar -zxvf libsodium-1.0.10.tar.gz && \
-    cd libsodium-1.0.10 && \
-    ./configure && \
-    make && make check && \
-    make install && \
-    cd .. && \
-    rm -rf libsodium* && \
-    ldconfig
-
 RUN wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha13/premake-5.0.0-alpha13-linux.tar.gz && \ 
     tar -zxvf premake-*.tar.gz && \
     rm premake-*.tar.gz && \
