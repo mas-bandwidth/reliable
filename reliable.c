@@ -1184,6 +1184,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 return;
             }
 
+            reliable_sequence_buffer_advance( endpoint->received_packets, sequence );
+
             int packet_buffer_size = RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size;
 
             reassembly_data->sequence = sequence;
