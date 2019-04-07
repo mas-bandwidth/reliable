@@ -4,13 +4,16 @@ solution "reliable"
     language "C"
     platforms { "x64" }
     configurations { "Debug", "Release" }
-    if not os.is "windows" then
+    if not os.istarget "windows" then
         includedirs { ".", "/usr/local/include" }       -- for clang scan-build only. for some reason it needs this to work =p
         targetdir "bin/"  
     end
     rtti "Off"
-    flags { "ExtraWarnings", "StaticRuntime", "FloatFast", "EnableSSE2" }
-    configuration "Debug"
+    warnings "Extra"
+    staticruntime "On"
+    floatingpoint "Fast"
+    vectorextensions "SSE2"
+        configuration "Debug"
         symbols "On"
         links { debug_libs }
     configuration "Release"
@@ -33,7 +36,7 @@ project "stats"
 project "fuzz"
     files { "fuzz.c", "reliable.c" }
 
-if os.is "windows" then
+if os.ishost "windows" then
 
     -- Windows
 
@@ -47,8 +50,6 @@ if os.is "windows" then
         end
     }
 
-    -- todo: create shortcuts here too for windows for consistency
-
 else
 
     -- MacOSX and Linux.
@@ -59,7 +60,7 @@ else
         description = "Build and run all unit tests",
         execute = function ()
             os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 test" == 0 then
+            if os.execute "make -j32 test" then
                 os.execute "./bin/test"
             end
         end
@@ -71,7 +72,7 @@ else
         description = "Build and run soak test",
         execute = function ()
             os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 soak" == 0 then
+            if os.execute "make -j32 soak" then
                 os.execute "./bin/soak"
             end
         end
@@ -83,7 +84,7 @@ else
         description = "Build and run stats example",
         execute = function ()
             os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 stats" == 0 then
+            if os.execute "make -j32 stats" then
                 os.execute "./bin/stats"
             end
         end
@@ -95,7 +96,7 @@ else
         description = "Build and run fuzz test",
         execute = function ()
             os.execute "test ! -e Makefile && premake5 gmake"
-            if os.execute "make -j32 fuzz" == 0 then
+            if os.execute "make -j32 fuzz" then
                 os.execute "./bin/fuzz"
             end
         end
@@ -194,7 +195,7 @@ newaction
           os.rmdir( v )
         end
 
-        if not os.is "windows" then
+        if not os.ishost "windows" then
             os.execute "find . -name .DS_Store -delete"
             for i,v in ipairs( files_to_delete ) do
               os.execute( "rm -f " .. v )
