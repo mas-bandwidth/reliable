@@ -263,6 +263,16 @@ void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t * sequ
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
 
+void reliable_sequence_buffer_advance( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
+{
+    reliable_assert( sequence_buffer );
+    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
+    {
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, NULL );
+        sequence_buffer->sequence = sequence + 1;
+    }
+}
+
 void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, 
                                                      uint16_t sequence, 
                                                      void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
@@ -1083,6 +1093,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) 
                 reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
+
+            reliable_sequence_buffer_advance( endpoint->fragment_reassembly, sequence );
 
             reliable_assert( received_packet_data );
 
@@ -2031,8 +2043,6 @@ void test_packets()
 
 void test_sequence_buffer_rollover()
 {
-    // todo: disable until fixed
-    /*
     double time = 100.0;
 
     struct test_context_t context;
@@ -2094,7 +2104,6 @@ void test_sequence_buffer_rollover()
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
-    */
 }
 
 #define RUN_TEST( test_function )                                           \
@@ -2116,8 +2125,7 @@ void reliable_test()
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
-        // todo: disable until fixed
-        //RUN_TEST( test_sequence_buffer_rollover );
+        RUN_TEST( test_sequence_buffer_rollover );
     }
 }
 
