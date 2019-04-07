@@ -9,7 +9,7 @@ compiler:
   - gcc
 
 install:
-  - wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha10/premake-5.0.0-alpha10-linux.tar.gz -O /tmp/premake5.tar.gz
+  - wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha13/premake-5.0.0-alpha13-linux.tar.gz -O /tmp/premake5.tar.gz
   - tar -zxvf /tmp/premake5.tar.gz
   
 script:
