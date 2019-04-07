@@ -2083,7 +2083,8 @@ void test_sequence_buffer_rollover()
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
     int num_packets_sent = 0;
-    for (int i = 0; i <= 32767; ++i)
+    int i;
+    for (i = 0; i <= 32767; ++i)
     {
         uint8_t packet_data[16];
         int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
