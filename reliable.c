@@ -2068,14 +2068,12 @@ void test_sequence_buffer_rollover()
     context.sender = reliable_endpoint_create( &sender_config, time );
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
-    double delta_time = 0.1;
-
     int num_packets_sent = 0;
     for (int i = 0; i <= 32767; ++i)
     {
         uint8_t packet_data[16];
         int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        reliable_endpoint_next_packet_sequence( context.sender );
         reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
 
         ++num_packets_sent;
@@ -2083,7 +2081,7 @@ void test_sequence_buffer_rollover()
     {
         uint8_t packet_data[TEST_MAX_PACKET_BYTES];
         int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        reliable_endpoint_next_packet_sequence( context.sender );
         reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
 
         ++num_packets_sent;
@@ -2091,7 +2089,7 @@ void test_sequence_buffer_rollover()
 
     RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
 
-    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == num_packets_sent );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == (uint16_t) num_packets_sent );
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] == 0 );
 
     reliable_endpoint_destroy( context.sender );
