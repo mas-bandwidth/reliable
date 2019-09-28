@@ -75,9 +75,9 @@ extern "C" {
 #endif
 #endif
 
-int reliable_init();
+int reliable_init(void);
 
-void reliable_term();
+void reliable_term(void);
 
 struct reliable_config_t
 {

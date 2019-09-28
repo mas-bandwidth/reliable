@@ -27,7 +27,6 @@
 #include <memory.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <inttypes.h>
 #include <float.h>
@@ -112,12 +111,12 @@ void reliable_default_free_function( void * context, void * pointer )
 
 // ------------------------------------------------------------------
 
-int reliable_init()
+int reliable_init(void)
 {
     return RELIABLE_OK;
 }
 
-void reliable_term()
+void reliable_term(void)
 {
 }
 
