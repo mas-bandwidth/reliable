@@ -1271,6 +1271,7 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
     endpoint->sequence = 0;
 
     memset( endpoint->acks, 0, endpoint->config.ack_buffer_size * sizeof( uint16_t ) );
+    memset( endpoint->counters, 0, RELIABLE_ENDPOINT_NUM_COUNTERS * sizeof( uint64_t ) );
 
     int i;
     for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
