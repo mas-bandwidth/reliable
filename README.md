@@ -2,15 +2,15 @@
 
 # Introduction
 
-**reliable.io** is a packet acknowlegement system for UDP protocols.
+**reliable** is a simple packet acknowlegement system for UDP protocols.
 
-It has the following features: 
+It has the following features:
 
-1. Identifies which packets are received by the other side
+1. Notification when sent packets are received
 2. Packet fragmentation and reassembly
 3. RTT and packet loss estimates
 
-reliable.io is stable and well tested having been used in AAA game projects for over 2 years now.
+reliable is stable and production ready.
 
 # Author
 
@@ -18,15 +18,15 @@ The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennf
 
 Glenn wrote an article series about the development of this library called [Building a Game Network Protocol](http://gafferongames.com/2016/05/10/building-a-game-network-protocol/).
 
-Open source libraries by the same author include: [netcode.io](http://netcode.io) and [yojimbo](http://libyojimbo.com)
+Open source libraries by the same author include: [netcode](http://netcode.io) and [yojimbo](http://libyojimbo.com)
 
 # Source Code
 
-This repository holds the implementation of reliable.io in C.
+This repository holds the reference implementation of reliable in C.
 
-Other reliable.io repositories include:
+Other reliable implementations include:
 
-* [reliable.io Rust implementation](https://github.com/jaynus/reliable.io)
+* [reliable Rust implementation](https://github.com/jaynus/reliable.io)
 
 # Contributors
 
@@ -36,7 +36,7 @@ These people are awesome:
 
 # Sponsors
 
-**reliable.io** was generously sponsored by:
+**reliable** was generously sponsored by:
 
 * **Gold Sponsors**
     * [Remedy Entertainment](http://www.remedygames.com/)
