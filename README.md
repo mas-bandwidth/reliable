@@ -2,7 +2,7 @@
 
 # Introduction
 
-**reliable** is a simple packet acknowlegement system for UDP protocols.
+**reliable** is a simple packet acknowledgement system for UDP protocols.
 
 It has the following features:
 
