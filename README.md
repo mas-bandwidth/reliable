@@ -18,7 +18,7 @@ The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennf
 
 Open source libraries by the same author include: [netcode](http://netcode.io) and [yojimbo](http://libyojimbo.com)
 
-Glenn is now the founder and CEO of Network Next. Network Next is a radically new way to link networks together. A new internet where networks compete on performance and price to carry your traffic. Check it out at https://networknext.com
+Glenn is now the founder and CEO of Network Next. Network Next is a new internet where networks compete on performance and price to carry your traffic. Check it out at https://networknext.com
 
 # Source Code
 
