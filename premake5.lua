@@ -15,11 +15,12 @@ solution "reliable"
     vectorextensions "SSE2"
         configuration "Debug"
         symbols "On"
+        defines { "RELIABLE_DEBUG" }
         links { debug_libs }
     configuration "Release"
         symbols "Off"
         optimize "Speed"
-        defines { "NDEBUG" }
+        defines { "RELIABLE_RELEASE" }
         links { release_libs }
     configuration { "gmake" }
         linkoptions { "-lm" }    

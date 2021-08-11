@@ -27,6 +27,16 @@
 
 #include <stdint.h>
 
+#if !defined(RELIABLE_DEBUG) && !defined(RELIABLE_RELEASE)
+#if defined(NDEBUG)
+#define RELIABLE_RELEASE
+#else
+#define RELIABLE_DEBUG
+#endif
+#elif defined(RELIABLE_DEBUG) && defined(RELIABLE_RELEASE)
+#error Can only define one of debug & release
+#endif
+
 #if    defined(__386__) || defined(i386)    || defined(__i386__)  \
     || defined(__X86)   || defined(_M_IX86)                       \
     || defined(_M_X64)  || defined(__x86_64__)                    \
@@ -139,7 +149,7 @@ void reliable_set_printf_function( int (*function)( RELIABLE_CONST char *, ... )
 
 extern void (*netcode_assert_function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char * file, int line );
 
-#ifndef NDEBUG
+#ifdef RELIABLE_DEBUG
 #define reliable_assert( condition )                                                        \
 do                                                                                          \
 {                                                                                           \
