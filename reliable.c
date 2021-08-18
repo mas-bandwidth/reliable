@@ -297,6 +297,18 @@ void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_bu
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
 
+void reliable_sequence_buffer_advance_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer,
+                                                    uint16_t sequence,
+                                                    void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
+{
+    reliable_assert( sequence_buffer );
+    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
+    {
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, cleanup_function );
+        sequence_buffer->sequence = sequence + 1;
+    }
+}
+
 void reliable_sequence_buffer_remove( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
 {
     reliable_assert( sequence_buffer );
@@ -1093,7 +1105,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) 
                 reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
 
-            reliable_sequence_buffer_advance( endpoint->fragment_reassembly, sequence );
+            reliable_sequence_buffer_advance_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
 
             reliable_assert( received_packet_data );
 
