@@ -1057,10 +1057,10 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     reliable_assert( packet_data );
     reliable_assert( packet_bytes > 0 );
 
-    if ( packet_bytes > endpoint->config.max_packet_size )
+    if ( packet_bytes > endpoint->config.max_packet_size + RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES )
     {
-        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to receive. packet is %d bytes, maximum is %d\n", 
-            endpoint->config.name, packet_bytes, endpoint->config.max_packet_size );
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to receive. packet is at least %d bytes, maximum is %d\n",
+            endpoint->config.name, packet_bytes - ( RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES ), endpoint->config.max_packet_size );
         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE]++;
         return;
     }
@@ -1082,6 +1082,18 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         {
             reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid packet. could not read packet header\n", endpoint->config.name );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID]++;
+            return;
+        }
+
+        reliable_assert( packet_header_bytes <= packet_bytes );
+
+        int packet_payload_bytes = packet_bytes - packet_header_bytes;
+
+        if ( packet_payload_bytes > endpoint->config.max_packet_size )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to receive. packet is at %d bytes, maximum is %d\n",
+                endpoint->config.name, packet_payload_bytes, endpoint->config.max_packet_size );
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE]++;
             return;
         }
 
