@@ -297,6 +297,18 @@ void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_bu
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
 
+void reliable_sequence_buffer_advance_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer,
+                                                    uint16_t sequence,
+                                                    void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
+{
+    reliable_assert( sequence_buffer );
+    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
+    {
+        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, cleanup_function );
+        sequence_buffer->sequence = sequence + 1;
+    }
+}
+
 void reliable_sequence_buffer_remove( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
 {
     reliable_assert( sequence_buffer );
@@ -1093,7 +1105,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             struct reliable_received_packet_data_t * received_packet_data = (struct reliable_received_packet_data_t*) 
                 reliable_sequence_buffer_insert( endpoint->received_packets, sequence );
 
-            reliable_sequence_buffer_advance( endpoint->fragment_reassembly, sequence );
+            reliable_sequence_buffer_advance_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
 
             reliable_assert( received_packet_data );
 
@@ -1727,9 +1739,16 @@ static void test_packet_header()
 struct test_context_t
 {
     int drop;
+    int allow_packets;
     struct reliable_endpoint_t * sender;
     struct reliable_endpoint_t * receiver;
 };
+
+void test_default_context( struct test_context_t * context )
+{
+    memset( context, 0, sizeof( context ) );
+    context->allow_packets = -1;
+}
 
 static void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
@@ -1740,6 +1759,16 @@ static void test_transmit_packet_function( void * _context, int index, uint16_t 
     if ( context->drop )
     {
         return;
+    }
+
+    if ( context->allow_packets >= 0 )
+    {
+        if ( context->allow_packets == 0 )
+        {
+            return;
+        }
+
+        context->allow_packets--;
     }
 
     if ( index == 0 )
@@ -1772,7 +1801,7 @@ static void test_acks()
     double time = 100.0;
 
     struct test_context_t context;
-    memset( &context, 0, sizeof( context ) );
+    test_default_context( &context );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -1849,7 +1878,7 @@ static void test_acks_packet_loss()
     double time = 100.0;
 
     struct test_context_t context;
-    memset( &context, 0, sizeof( context ) );
+    test_default_context( &context );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -1927,11 +1956,11 @@ static void test_acks_packet_loss()
 
 #define TEST_MAX_PACKET_BYTES (4*1024)
 
-static int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
+static void generate_packet_data_with_size( uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    int packet_bytes = ( ( (int)sequence * 1023 ) % ( TEST_MAX_PACKET_BYTES - 2 ) ) + 2;
     reliable_assert( packet_bytes >= 2 );
     reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+
     packet_data[0] = (uint8_t) ( sequence & 0xFF );
     packet_data[1] = (uint8_t) ( (sequence>>8) & 0xFF );
     int i;
@@ -1939,6 +1968,12 @@ static int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
     {
         packet_data[i] = (uint8_t) ( ( (int)i + sequence ) % 256 );
     }
+}
+
+static int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
+{
+    int packet_bytes = ( ( (int)sequence * 1023 ) % ( TEST_MAX_PACKET_BYTES - 2 ) ) + 2;
+    generate_packet_data_with_size( sequence, packet_data, packet_bytes );
     return packet_bytes;
 }
 
@@ -1977,7 +2012,7 @@ void test_packets()
     double time = 100.0;
 
     struct test_context_t context;
-    memset( &context, 0, sizeof( context ) );
+    test_default_context( &context );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -2048,7 +2083,7 @@ void test_sequence_buffer_rollover()
     double time = 100.0;
 
     struct test_context_t context;
-    memset( &context, 0, sizeof( context ) );
+    test_default_context( &context );
     
     struct reliable_config_t sender_config;
     struct reliable_config_t receiver_config;
@@ -2109,6 +2144,138 @@ void test_sequence_buffer_rollover()
     reliable_endpoint_destroy( context.receiver );
 }
 
+#define RELIABLE_ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
+
+struct test_tracking_allocate_context_t
+{
+    void* active_allocations[1024];
+};
+
+void * test_tracking_allocate_function( void * context, uint64_t bytes )
+{
+    struct test_tracking_allocate_context_t* tracking_context = (struct test_tracking_allocate_context_t*)context;
+    void * allocation = malloc( bytes );
+    int tracking_index;
+    for ( tracking_index = 0; tracking_index < RELIABLE_ARRAY_SIZE(tracking_context->active_allocations); ++tracking_index )
+    {
+        if ( tracking_context->active_allocations[tracking_index] == NULL )
+        {
+            break;
+        }
+    }
+
+    reliable_assert(tracking_index < RELIABLE_ARRAY_SIZE(tracking_context->active_allocations));
+    tracking_context->active_allocations[tracking_index] = allocation;
+    return allocation;
+}
+
+void test_tracking_free_function( void * context, void * pointer )
+{
+    struct test_tracking_allocate_context_t* tracking_context = (struct test_tracking_allocate_context_t*)context;
+    int tracking_index;
+    for ( tracking_index = 0; tracking_index < RELIABLE_ARRAY_SIZE(tracking_context->active_allocations); ++tracking_index )
+    {
+        if ( tracking_context->active_allocations[tracking_index] == pointer )
+        {
+            break;
+        }
+    }
+
+    reliable_assert(tracking_index < RELIABLE_ARRAY_SIZE(tracking_context->active_allocations));
+    tracking_context->active_allocations[tracking_index] = NULL;
+    free( pointer );
+}
+
+void test_fragment_cleanup()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct test_tracking_allocate_context_t tracking_alloc_context;
+    memset( &tracking_alloc_context, 0, sizeof( tracking_alloc_context ) );
+    
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    receiver_config.allocator_context = &tracking_alloc_context;
+    receiver_config.allocate_function = &test_tracking_allocate_function;
+    receiver_config.free_function = &test_tracking_free_function;
+    receiver_config.fragment_reassembly_buffer_size = 4;
+
+#if defined(_MSC_VER)
+    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
+#else
+    strcpy( sender_config.name, "sender" );
+#endif
+    sender_config.context = &context;
+    sender_config.index = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+#if defined(_MSC_VER)
+    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
+#else
+    strcpy( receiver_config.name, "receiver" );
+#endif
+    receiver_config.context = &context;
+    receiver_config.index = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    double delta_time = 0.1;
+
+    int packet_sizes[] = {
+        sender_config.fragment_size + sender_config.fragment_size/2,
+        10,
+        10,
+        10,
+        10,
+    };
+
+    // Make sure we're sending more than receiver_config.fragment_reassembly_buffer_size packets, so the buffer wraps around.
+    reliable_assert( RELIABLE_ARRAY_SIZE( packet_sizes ) > receiver_config.fragment_reassembly_buffer_size );
+
+    int i;
+    for ( i = 0; i < RELIABLE_ARRAY_SIZE( packet_sizes ); ++i )
+    {
+        // Only allow one packet per transmit, so that our fragmented packets are only partially
+        // delivered.
+        context.allow_packets = 1;
+        {
+            uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+            uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+            generate_packet_data_with_size( sequence, packet_data, packet_sizes[i] );
+            reliable_endpoint_send_packet( context.sender, packet_data, packet_sizes[i]);
+        }
+
+        reliable_endpoint_update( context.sender, time );
+        reliable_endpoint_update( context.receiver, time );
+
+        reliable_endpoint_clear_acks( context.sender );
+        reliable_endpoint_clear_acks( context.receiver );
+
+        time += delta_time;
+    }
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+    
+    // Make sure that there is no memory that hasn't been freed.
+    int tracking_index;
+    for ( tracking_index = 0; tracking_index < RELIABLE_ARRAY_SIZE(tracking_alloc_context.active_allocations); ++tracking_index )
+    {
+        check( tracking_alloc_context.active_allocations[tracking_index] == NULL );
+    }
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -2129,6 +2296,7 @@ void reliable_test()
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
         RUN_TEST( test_sequence_buffer_rollover );
+        RUN_TEST( test_fragment_cleanup );
     }
 }
 
