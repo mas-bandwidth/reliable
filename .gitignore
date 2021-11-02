@@ -23,6 +23,9 @@
 *.sublime-project
 *.sublime-workspace
 
+# premake5 generated files
+Makefile
+
 # Directories we don't ever want to commit
 bin
 obj

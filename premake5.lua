@@ -22,7 +22,7 @@ solution "reliable"
         optimize "Speed"
         defines { "RELIABLE_RELEASE" }
         links { release_libs }
-    configuration { "gmake" }
+    configuration { "gmake2" }
         linkoptions { "-lm" }    
         
 project "test"
@@ -46,7 +46,7 @@ if os.ishost "windows" then
         trigger     = "solution",
         description = "Create and open the reliable.io solution",
         execute = function ()
-            os.execute "premake5 vs2015"
+            os.execute "premake5 vs2019"
             os.execute "start reliable.sln"
         end
     }
@@ -72,7 +72,7 @@ else
         trigger     = "soak",
         description = "Build and run soak test",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake"
+            os.execute "test ! -e Makefile && premake5 gmake2"
             if os.execute "make -j32 soak" then
                 os.execute "./bin/soak"
             end
@@ -84,7 +84,7 @@ else
         trigger     = "stats",
         description = "Build and run stats example",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake"
+            os.execute "test ! -e Makefile && premake5 gmake2"
             if os.execute "make -j32 stats" then
                 os.execute "./bin/stats"
             end
@@ -96,7 +96,7 @@ else
         trigger     = "fuzz",
         description = "Build and run fuzz test",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake"
+            os.execute "test ! -e Makefile && premake5 gmake2"
             if os.execute "make -j32 fuzz" then
                 os.execute "./bin/fuzz"
             end
@@ -117,7 +117,7 @@ else
         trigger     = "scan-build",
         description = "Run clang scan-build over the project",
         execute = function ()
-            os.execute "premake5 clean && premake5 gmake && scan-build make all -j32"
+            os.execute "premake5 clean && premake5 gmake2 && scan-build make all -j32"
         end
     }
 
