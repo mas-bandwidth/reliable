@@ -2007,6 +2007,45 @@ static int test_process_packet_function_validate( void * context, int index, uin
     return 1;
 }
 
+static int generate_packet_data_large( uint8_t* packet_data )
+{
+    int data_bytes = TEST_MAX_PACKET_BYTES - 2;
+    reliable_assert( data_bytes >= 2) ;
+    reliable_assert( data_bytes <= (1 << 16) );
+
+    packet_data[0] = (uint8_t) (data_bytes & 0xFF);
+    packet_data[1] = (uint8_t) ( (data_bytes >> 8) & 0xFF );
+    int i;
+    for ( i = 2; i < data_bytes; ++i )
+    {
+        packet_data[i] = (uint8_t) ( i % 256 );
+    }
+    return data_bytes + 2;
+}
+
+static int test_process_packet_function_validate_large( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    reliable_assert( packet_data );
+    reliable_assert( packet_bytes >= 2 );
+    reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+
+    (void)context;
+    (void)index;
+    (void)sequence;
+
+    uint16_t data_bytes = 0;
+    data_bytes |= (uint16_t) packet_data[0];
+    data_bytes |= ( (uint16_t) packet_data[1] ) << 8;
+    check( packet_bytes == data_bytes + 2 );
+    int i;
+    for ( i = 2; i < data_bytes; ++i )
+    {
+        check( packet_data[i] == (uint8_t) ( i  % 256 ) );
+    }
+
+    return 1;
+}
+
 void test_packets()
 {
     double time = 100.0;
@@ -2073,6 +2112,69 @@ void test_packets()
 
         time += delta_time;
     }
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
+void test_large_packets()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    sender_config.max_packet_size = TEST_MAX_PACKET_BYTES;
+    receiver_config.max_packet_size = TEST_MAX_PACKET_BYTES;
+
+    sender_config.fragment_above = TEST_MAX_PACKET_BYTES;
+    receiver_config.fragment_above = TEST_MAX_PACKET_BYTES;
+
+#if defined(_MSC_VER)
+    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
+#else
+    strcpy( sender_config.name, "sender" );
+#endif
+    sender_config.context = &context;
+    sender_config.index = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function_validate_large;
+
+#if defined(_MSC_VER)
+    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
+#else
+    strcpy( receiver_config.name, "receiver" );
+#endif
+    receiver_config.context = &context;
+    receiver_config.index = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function_validate_large;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    {
+        uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+        int packet_bytes = generate_packet_data_large( packet_data );
+        check( packet_bytes == TEST_MAX_PACKET_BYTES );
+        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+    }
+
+    reliable_endpoint_update( context.sender, time );
+    reliable_endpoint_update( context.receiver, time );
+
+    reliable_endpoint_clear_acks( context.sender );
+    reliable_endpoint_clear_acks( context.receiver );
+
+    RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE] == 0 );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 1 );
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
@@ -2295,6 +2397,7 @@ void reliable_test()
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_packets );
+        RUN_TEST( test_large_packets );
         RUN_TEST( test_sequence_buffer_rollover );
         RUN_TEST( test_fragment_cleanup );
     }
