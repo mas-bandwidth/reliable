@@ -1,4 +1,4 @@
-[![Travis Build Status](https://travis-ci.org/networkprotocol/reliable.io.svg?branch=master)](https://travis-ci.org/networkprotocol/reliable.io)
+[![Build status](https://github.com/networkprotocol/reliable/workflows/CI/badge.svg)](https://github.com/networkprotocol/reliable/actions?query=workflow%3ACI)
 
 # Introduction
 
