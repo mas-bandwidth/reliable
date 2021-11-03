@@ -1746,7 +1746,7 @@ struct test_context_t
 
 void test_default_context( struct test_context_t * context )
 {
-    memset( context, 0, sizeof( context ) );
+    memset( context, 0, sizeof( *context ) );
     context->allow_packets = -1;
 }
 
