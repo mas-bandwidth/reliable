@@ -25,6 +25,7 @@
 
 # premake5 generated files
 Makefile
+*.make
 
 # Directories we don't ever want to commit
 bin
