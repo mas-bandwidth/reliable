@@ -6,7 +6,7 @@
 
 It has the following features:
 
-1. Notification when sent packets are received
+1. Acknowledgement when packets are received
 2. Packet fragmentation and reassembly
 3. RTT and packet loss estimates
 
