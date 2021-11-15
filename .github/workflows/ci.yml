@@ -9,15 +9,9 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        configuration:
-          - { vs: Release, make: release }
-          - { vs: Debug, make: debug }
+        configuration: [release, debug]
 
     runs-on: ${{ matrix.os }}
-
-    env:
-      VS_CONFIG: ${{ matrix.configuration.vs }}
-      MAKE_CONFIG: ${{ matrix.configuration.make }}
 
     steps:
     - uses: actions/checkout@master
@@ -30,7 +24,7 @@ jobs:
       run: |
         premake5 gmake2
         make clean
-        make all config=${MAKE_CONFIG}_x64
+        make all config=${{ matrix.configuration }}_x64
     - name: Test (gmake2)
       if: runner.os != 'Windows'
       run: ./bin/test
@@ -45,8 +39,8 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         premake5 vs2019
-        msbuild reliable.sln -nologo -m -t:Clean  -p:Configuration=$Env:VS_CONFIG
-        msbuild reliable.sln -nologo -m -p:Configuration=$Env:VS_CONFIG
+        msbuild reliable.sln -nologo -m -t:Clean  -p:Configuration=${{ matrix.configuration }}
+        msbuild reliable.sln -nologo -m -p:Configuration=${{ matrix.configuration }}
     - name: Test (vs2019)
       if: runner.os == 'Windows'
-      run: "& ./bin/x64/$Env:VS_CONFIG/test.exe"
+      run: "& ./bin/x64/${{ matrix.configuration }}/test.exe"
