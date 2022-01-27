@@ -2258,7 +2258,7 @@ void test_sequence_buffer_rollover()
     reliable_endpoint_destroy( context.receiver );
 }
 
-#define RELIABLE_ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
+#define RELIABLE_ARRAY_SIZE(x) ( int( sizeof((x)) / sizeof((x)[0]) ) )
 
 struct test_tracking_allocate_context_t
 {

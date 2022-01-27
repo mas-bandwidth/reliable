@@ -12,8 +12,7 @@ solution "reliable"
     warnings "Extra"
     staticruntime "On"
     floatingpoint "Fast"
-    vectorextensions "SSE2"
-        configuration "Debug"
+    configuration "Debug"
         symbols "On"
         defines { "RELIABLE_DEBUG" }
         links { debug_libs }
