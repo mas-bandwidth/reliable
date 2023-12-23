@@ -1,4 +1,4 @@
-[![Build status](https://github.com/networkprotocol/reliable/workflows/CI/badge.svg)](https://github.com/networkprotocol/reliable/actions?query=workflow%3ACI)
+[![Build status](https://github.com/mas-bandwidth/reliable/workflows/CI/badge.svg)](https://github.com/mas-bandwidth/reliable/actions?query=workflow%3ACI)
 
 # Introduction
 
@@ -14,9 +14,9 @@ reliable is stable and production ready.
 
 # Author
 
-The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glennfiedler).
+The author of this library is Glenn Fiedler.
 
-Open source libraries by the same author include: [netcode](http://netcode.io) and [yojimbo](http://libyojimbo.com)
+Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode) and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
 
 # Source Code
 
@@ -42,10 +42,11 @@ These people are awesome:
     
 * **Silver Sponsors**
     * [Moon Studios](http://www.oriblindforest.com/#!moon-3/)
-    * [The Network Protocol Company](http://www.thenetworkprotocolcompany.com)
+    * [Mas Bandwidth](https://www.mas-bandwidth.com)
+    * The Network Protocol Company
     
 * **Bronze Sponsors**
-    * [Kite & Lightning](http://kiteandlightning.la/)
+    * Kite & Lightning
     * [Data Realms](http://datarealms.com)
  
 And by individual supporters on Patreon. Thank you. You made this possible!

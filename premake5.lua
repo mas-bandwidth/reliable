@@ -2,7 +2,6 @@
 solution "reliable"
     kind "ConsoleApp"
     language "C"
-    platforms { "x64" }
     configurations { "Debug", "Release" }
     if not os.istarget "windows" then
         includedirs { ".", "/usr/local/include" }       -- for clang scan-build only. for some reason it needs this to work =p
@@ -12,17 +11,13 @@ solution "reliable"
     warnings "Extra"
     staticruntime "On"
     floatingpoint "Fast"
-    configuration "Debug"
+    filter "configurations:Debug"
         symbols "On"
         defines { "RELIABLE_DEBUG" }
-        links { debug_libs }
-    configuration "Release"
+    filter "configurations:Release"
         symbols "Off"
         optimize "Speed"
         defines { "RELIABLE_RELEASE" }
-        links { release_libs }
-    configuration { "gmake2" }
-        linkoptions { "-lm" }    
         
 project "test"
     files { "test.cpp" }
@@ -43,7 +38,7 @@ if os.ishost "windows" then
     newaction
     {
         trigger     = "solution",
-        description = "Create and open the reliable.io solution",
+        description = "Create and open the reliable solution",
         execute = function ()
             os.execute "premake5 vs2019"
             os.execute "start reliable.sln"
@@ -71,7 +66,7 @@ else
         trigger     = "soak",
         description = "Build and run soak test",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake2"
+            os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 soak" then
                 os.execute "./bin/soak"
             end
@@ -83,7 +78,7 @@ else
         trigger     = "stats",
         description = "Build and run stats example",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake2"
+            os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 stats" then
                 os.execute "./bin/stats"
             end
@@ -95,46 +90,10 @@ else
         trigger     = "fuzz",
         description = "Build and run fuzz test",
         execute = function ()
-            os.execute "test ! -e Makefile && premake5 gmake2"
+            os.execute "test ! -e Makefile && premake5 gmake"
             if os.execute "make -j32 fuzz" then
                 os.execute "./bin/fuzz"
             end
-        end
-    }
-
-    newaction
-    {
-        trigger     = "cppcheck",
-        description = "Run cppcheck over the source code",
-        execute = function ()
-            os.execute "cppcheck reliable.c"
-        end
-    }
-
-    newaction
-    {
-        trigger     = "scan-build",
-        description = "Run clang scan-build over the project",
-        execute = function ()
-            os.execute "premake5 clean && premake5 gmake2 && scan-build make all -j32"
-        end
-    }
-
-    newaction
-    {
-        trigger     = "docker",
-        description = "Build and run reliable.io tests inside docker",
-        execute = function ()
-            os.execute "rm -rf docker/reliable.io && mkdir -p docker/reliable.io && cp *.h docker/reliable.io && cp *.c docker/reliable.io && cp *.cpp docker/reliable.io && cp premake5.lua docker/reliable.io && cd docker && docker build -t \"networkprotocol:reliable.io-server\" . && rm -rf reliable.io && docker run -ti -p 40000:40000/udp networkprotocol:reliable.io-server"
-        end
-    }
-
-    newaction
-    {
-        trigger     = "valgrind",
-        description = "Run valgrind over tests inside docker",
-        execute = function ()
-            os.execute "rm -rf valgrind/reliable.io && mkdir -p valgrind/reliable.io && cp *.h valgrind/reliable.io && cp *.c valgrind/reliable.io && cp *.cpp valgrind/reliable.io && cp premake5.lua valgrind/reliable.io && cd valgrind && docker build -t \"networkprotocol:reliable.io-valgrind\" . && rm -rf reliable.io && docker run -ti networkprotocol:reliable.io-valgrind"
         end
     }
 
@@ -186,9 +145,7 @@ newaction
             "release",
             "cov-int",
             "docs",
-            "xml",
-            "docker/reliable.io",
-            "valgrind/reliable.io"
+            "xml"
         }
 
         for i,v in ipairs( directories_to_delete ) do

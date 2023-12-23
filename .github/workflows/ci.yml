@@ -19,13 +19,13 @@ jobs:
       uses: abel0b/setup-premake@v1
 
     # Linux & MacOS-specific build steps
-    - name: Build (gmake2)
+    - name: Build (gmake)
       if: runner.os != 'Windows'
       run: |
-        premake5 gmake2
+        premake5 gmake
         make clean
-        make all config=${{ matrix.configuration }}_x64
-    - name: Test (gmake2)
+        make all config=${{ matrix.configuration }}
+    - name: Test (gmake)
       if: runner.os != 'Windows'
       run: ./bin/test
 
@@ -43,4 +43,4 @@ jobs:
         msbuild reliable.sln -nologo -m -p:Configuration=${{ matrix.configuration }}
     - name: Test (vs2019)
       if: runner.os == 'Windows'
-      run: "& ./bin/x64/${{ matrix.configuration }}/test.exe"
+      run: "& ./bin/${{ matrix.configuration }}/test.exe"
