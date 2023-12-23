@@ -7,7 +7,7 @@ Download [premake 5](https://premake.github.io/download.html) and copy the **pre
 
 You need Visual Studio to build the source code. If you don't have Visual Studio 2019 you can [download the community edition for free](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community&rel=16).
 
-Once you have Visual Studio installed, go to the command line under the netcode.io/c directory and type:
+Once you have Visual Studio installed, go to the command line under the reliable directory and type:
 
     premake5 solution
 
