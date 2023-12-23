@@ -230,7 +230,7 @@ void stats_iteration( double time )
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
         (int) reliable_endpoint_rtt( global_context.client ),
-        (int) floor( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ),
+        (int) ( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ),
         (int) sent_bandwidth_kbps,
         (int) received_bandwidth_kbps,
         (int) acked_bandwidth_kbps );
