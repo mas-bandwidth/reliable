@@ -13,11 +13,11 @@ solution "reliable"
     floatingpoint "Fast"
     filter "configurations:Debug"
         symbols "On"
-        defines { "RELIABLE_DEBUG" }
+        defines { "RELIABLE_DEBUG", "RELIABLE_ENABLE_TESTS" }
     filter "configurations:Release"
         symbols "Off"
         optimize "Speed"
-        defines { "RELIABLE_RELEASE" }
+        defines { "RELIABLE_RELEASE", "RELIABLE_ENABLE_TESTS" }
         
 project "test"
     files { "test.cpp" }
