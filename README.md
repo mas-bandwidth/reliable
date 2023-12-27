@@ -16,7 +16,7 @@ reliable is stable and production ready.
 
 Reliable is designed to operate with your own network library and your own sockets.
 
-To use reliable, create an endpoint:
+To use reliable, create an endpoint on each side of the connection:
 
 ```c
 struct reliable_config_t config;
