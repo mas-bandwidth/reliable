@@ -12,6 +12,32 @@ It has the following features:
 
 reliable is stable and production ready.
 
+# Usage
+
+Reliable is designed to operate with your own network library and your own sockets.
+
+To use reliable, create an endpoint:
+
+```c
+double time = 0.0;                                      // time in seconds
+
+struct reliable_config_t config;
+reliable_default_config( &config );
+config.max_packet_size = 32 * 1024;                     // maximum packet size that may be sent in bytes
+config.fragment_above = 1200;                           // fragment and reassemble packets above this size in bytes
+config.max_fragments = 40;                              // maximum number of fragments a packet may be broken up into
+config.fragment_size = 1024;                            // the size of each fragment sent
+config.transmit_packet_function = transmit_packet;      // set the callback function to transmit packets
+config.process_packet_function = process_packet;        // set the callback function to process packets
+
+reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, time );
+if ( endpoint == NULL )
+{
+  printf( "error: could not create endpoint\n" );
+  exit(1);
+}
+```
+
 # Author
 
 The author of this library is Glenn Fiedler.
