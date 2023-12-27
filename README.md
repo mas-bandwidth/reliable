@@ -40,18 +40,16 @@ if ( endpoint == NULL )
 }
 ```
 
+For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints on each peer.
+
+You can name your endpoints for debugging by setting _name_ in the config when you create the endpoint, and use a any combination of _context_ and _id_ so you know how to send and receive packets per-endpoint. For example, a client endpoint would know to send to the server IP address, and the client n endpoint on a server would know to send packets to the address of client n via _id_.
+
 Next, create a function to send packets:
 
 ```c
 static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    (void) context;              // void* pointer that you can set via config
-    (void) id;                   // uint64_t client id. set this to anything you want in config
-    (void) sequence;             // sequence number of packet being sent
-    (void) packet_data;          // the packet data
-    (void) packet_bytes;         // size of the packet in bytes
-
-    // send packet using sockets
+    // send packet using your own sockets
 }
 ```
 
@@ -74,7 +72,13 @@ memset( packet, 0, sizeof( packet ) );
 reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
 ```
 
-And get acks like this:
+And for each packet received that belongs to an endpoint, call:
+
+```c
+reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
+```
+
+Now the process packet will be called for each packete received by the endpoint, and you can get acks for sent packets through an endpoint like this:
 
 ```c
 int num_acks;
@@ -85,7 +89,7 @@ for ( int i = 0; i < num_acks; i++ )
 }
 ```
 
-When you are finished with the endpoint, destroy it:
+When you are finished with an endpoint, destroy it:
 
 ```c
 reliable_endpoint_destroy( endpoint );
