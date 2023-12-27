@@ -101,14 +101,8 @@ int main( int argc, char ** argv )
     // create client connection
 
     config.context = &client;
-    #if defined(_MSC_VER)
-    strcpy_s( config.name, sizeof( config.name ), "client" );
-    #else
-    strcpy( config.name, "client" );
-    #endif
-
+    reliable_copy_string( config.name, "client", sizeof( config.name ) );
     client.endpoint = reliable_endpoint_create( &config, time );
-
     if ( client.endpoint == NULL )
     {
         printf( "error: could not create client endpoint\n" );
@@ -118,15 +112,8 @@ int main( int argc, char ** argv )
     // create server connection
 
     config.context = &server;
-
-    #if defined(_MSC_VER)
-    strcpy_s( config.name, sizeof( config.name ), "client" );
-    #else
-    strcpy( config.name, "client" );
-    #endif
-
+    reliable_copy_string( config.name, "server", sizeof( config.name ) );
     server.endpoint = reliable_endpoint_create( &config, time );
-    
     if ( server.endpoint == NULL )
     {
         printf( "error: could not create server endpoint\n" );
@@ -154,7 +141,7 @@ int main( int argc, char ** argv )
         uint16_t * acks = reliable_endpoint_get_acks( client.endpoint, &num_acks );
         for ( int j = 0; j < num_acks; j++ )
         {
-            printf( " --> server acked client packet %d\n", acks[j] );
+            printf( " --> server acked packet %d\n", acks[j] );
         }
 
         reliable_endpoint_clear_acks( client.endpoint );

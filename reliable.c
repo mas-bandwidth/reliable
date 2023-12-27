@@ -1501,6 +1501,20 @@ RELIABLE_CONST uint64_t * reliable_endpoint_counters( struct reliable_endpoint_t
     return endpoint->counters;
 }
 
+void reliable_copy_string( char * dest, RELIABLE_CONST char * source, size_t dest_size )
+{
+    reliable_assert( dest );
+    reliable_assert( source );
+    reliable_assert( dest_size >= 1 );
+    memset( dest, 0, dest_size );
+    for ( size_t i = 0; i < dest_size - 1; i++ )
+    {
+        if ( source[i] == '\0' )
+            break;
+        dest[i] = source[i];
+    }
+}
+
 // ---------------------------------------------------------------
 
 #if RELIABLE_ENABLE_TESTS

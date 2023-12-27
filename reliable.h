@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <inttypes.h>
 
 #if !defined(RELIABLE_DEBUG) && !defined(RELIABLE_RELEASE)
@@ -170,6 +171,8 @@ void reliable_set_assert_function( void (*function)( RELIABLE_CONST char * /*con
                                    RELIABLE_CONST char * /*function*/, 
                                    RELIABLE_CONST char * /*file*/, 
                                    int /*line*/ ) );
+
+void reliable_copy_string( char * dest, RELIABLE_CONST char * source, size_t dest_size );
 
 #ifdef __cplusplus
 }
