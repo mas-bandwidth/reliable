@@ -61,7 +61,6 @@ And a function to process received packets:
 static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     // read the packet here and process its contents, return 0 if the packet should not be acked
-
     return 1;
 }
 ```
