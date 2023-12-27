@@ -14,9 +14,9 @@ reliable is stable and production ready.
 
 # Usage
 
-Reliable is designed to operate with your own network library and sockets.
+Reliable is designed to operate with your own network socket library.
 
-If you don't have one of these already, try [netcode](https://github.com/mas-bandwidth/netcode), it was designed to work well with reliable.
+If you don't have this already, try [netcode](https://github.com/mas-bandwidth/netcode), it was designed to work well with reliable.
 
 First, create an endpoint on each side of the connection:
 
