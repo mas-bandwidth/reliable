@@ -19,10 +19,10 @@ Reliable is designed to operate with your own network library and your own socke
 To use reliable, create an endpoint:
 
 ```c
-double time = 0.0;                                      // time in seconds
-
 struct reliable_config_t config;
+
 reliable_default_config( &config );
+
 config.max_packet_size = 32 * 1024;                     // maximum packet size that may be sent in bytes
 config.fragment_above = 1200;                           // fragment and reassemble packets above this size in bytes
 config.max_fragments = 40;                              // maximum number of fragments a packet may be broken up into
