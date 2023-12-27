@@ -21,7 +21,10 @@ solution "reliable"
         defines { "RELIABLE_RELEASE", "RELIABLE_ENABLE_TESTS" }
         
 project "test"
-    files { "test.cpp" }
+    files { "test.cpp", "reliable.c"  }
+
+project "example"
+    files { "example.c", "reliable.c" }
 
 project "soak"
     files { "soak.c", "reliable.c" }

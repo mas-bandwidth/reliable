@@ -30,6 +30,7 @@ Which creates makefiles which you can use to build the source via:
 Then you can run binaries like this:
 
     ./bin/test
+    ./bin/example
     ./bin/stats
     ./bin/soak
     ./bin/fuzz

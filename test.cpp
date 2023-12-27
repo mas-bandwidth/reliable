@@ -22,29 +22,26 @@
     USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define RELIABLE_ENABLE_TESTS 1
-
 #include "reliable.h"
-#include "reliable.c"
 #include <stdio.h>
 #include <assert.h>
 
-extern void reliable_test();
+extern "C" void reliable_test();
 
 int main( int argc, char ** argv )
 {
 	(void) argc;
 	(void) argv;
 
-    printf( "\n" );
+   printf( "\n" );
 
-	reliable_init();
+   reliable_init();
 
-    reliable_test();
+   reliable_test();
 
-    reliable_term();
-	
-    printf( "\n*** ALL TESTS PASSED ***\n\n" );
+   reliable_term();
 
-    return 0;
+   printf( "\n*** ALL TESTS PASSED ***\n\n" );
+
+   return 0;
 }
