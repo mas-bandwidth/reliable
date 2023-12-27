@@ -14,9 +14,9 @@ reliable is stable and production ready.
 
 # Usage
 
-Reliable is designed to operate with your own network library and sockets.
+Reliable is designed to operate with your own network library and sockets. If you don't have one of these already, try [netcode](https://github.com/mas-bandwidth/netcode).
 
-To use reliable, create an endpoint on each side of the connection:
+First, create an endpoint on each side of the connection:
 
 ```c
 struct reliable_config_t config;
