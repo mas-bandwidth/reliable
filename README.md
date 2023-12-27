@@ -24,8 +24,8 @@ struct reliable_config_t config;
 reliable_default_config( &config );
 
 config.max_packet_size = 32 * 1024;                     // maximum packet size that may be sent in bytes
-config.fragment_above = 1200;                           // fragment and reassemble packets above this size in bytes
-config.max_fragments = 40;                              // maximum number of fragments a packet may be broken up into
+config.fragment_above = 1200;                           // fragment and reassemble packets above this size
+config.max_fragments = 40;                              // maximum number of fragments per-packet
 config.fragment_size = 1024;                            // the size of each fragment sent
 config.transmit_packet_function = transmit_packet;      // set the callback function to transmit packets
 config.process_packet_function = process_packet;        // set the callback function to process packets
