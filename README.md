@@ -66,7 +66,13 @@ static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8
 }
 ```
 
-Now you can send packets through the endpoints:
+And for each packet you receive from your socket, call this on the corresponding endpoint:
+
+```c
+reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
+```
+
+Now you can send packets through the endpoint:
 
 ```c
 uint8_t packet[8];
@@ -74,13 +80,7 @@ memset( packet, 0, sizeof( packet ) );
 reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
 ```
 
-And for each packet you receive from your socket, call this on the corresponding endpoint:
-
-```c
-reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
-```
-
-Now the process packet will be called for each packet received by the endpoint, and you can get acks for any packets sent through an endpoint like this:
+And the process packet will be called for each packet received by the endpoint, and you can get acks for packets sent through an endpoint like this:
 
 ```c
 int num_acks;
