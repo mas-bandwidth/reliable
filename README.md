@@ -106,7 +106,7 @@ Open source libraries by the same author include: [netcode](https://github.com/m
 
 # Source Code
 
-This repository holds the reference implementation of reliable in C.
+This repository holds the implementation of reliable in C.
 
 Other reliable implementations include:
 
