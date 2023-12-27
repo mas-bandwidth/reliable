@@ -48,7 +48,7 @@ static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uin
         return;
     }
 
-    // send the packet directly to the other endpoint
+    // send the packet directly to the other endpoint (normally this would be done via sockets...)
 
     if ( context == &client )
     {
@@ -68,7 +68,7 @@ static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8
     (void) packet_data;
     (void) packet_bytes;
 
-    // you would read the packet here and process its contents, return 0 if the packet should not be acked
+    // read the packet here and process its contents, return 0 if the packet should not be acked
 
     return 1;
 }
@@ -91,12 +91,12 @@ int main( int argc, char ** argv )
     
     reliable_default_config( &config );
 
-    config.max_packet_size = 32 * 1024;
-    config.fragment_above = 1200;
-    config.max_fragments = 32;
-    config.fragment_size = 1024;
-    config.transmit_packet_function = transmit_packet;
-    config.process_packet_function = process_packet;
+    config.max_packet_size = 32 * 1024;                     // maximum packet size that may be sent in bytes
+    config.fragment_above = 1200;                           // fragment and reassemble packets above this size
+    config.max_fragments = 32;                              // maximum number of fragments per-packet
+    config.fragment_size = 1024;                            // the size of each fragment sent
+    config.transmit_packet_function = transmit_packet;      // set the callback function to transmit packets
+    config.process_packet_function = process_packet;        // set the callback function to process packets
 
     // create client connection
 
