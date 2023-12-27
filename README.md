@@ -40,18 +40,18 @@ if ( endpoint == NULL )
 }
 ```
 
-For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints on each peer.
+For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints per- peer.
 
-You can name your endpoints for debugging by setting _name_ in the config, and use any combination of _context_ and _id_ so you know how to send and receive packets per-endpoint. 
+You can name your endpoints by setting _name_ in the config and use any combination of _context_ and _id_ so you know how to send and receive packets for that endpoint.
 
-For example, an endpoint beloning to a client would know to send packets to the server IP address, and a client endpoint on a server would know to send packets to the address of the specific client via _id_.
+For example, an endpoint belonging to a client would send packets to the server IP address, and a client endpoint on the server would know to send packets to the address of that specific client via _id_.
 
 Next, create a function to transmit packets:
 
 ```c
 static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    // send packet using your own sockets
+    // send packet using your own udp socket
 }
 ```
 
@@ -65,7 +65,7 @@ static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8
 }
 ```
 
-And for each packet you receive from your socket, call this on the corresponding endpoint:
+For each packet you receive from your udp socket, call this on the endpoint that should receive it:
 
 ```c
 reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
@@ -79,7 +79,9 @@ memset( packet, 0, sizeof( packet ) );
 reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
 ```
 
-And the process packet will be called for each packet received by the endpoint, and you can get acks for packets sent through an endpoint like this:
+And the process packet callback will be called for each packet received by the endpoint.
+
+You can get acks for packets sent through an endpoint like this:
 
 ```c
 int num_acks;
