@@ -61,7 +61,7 @@ double global_time = 100.0;
 
 struct test_context_t global_context;
 
-void test_transmit_packet_function( void * _context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+void test_transmit_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) sequence;
 
@@ -70,11 +70,11 @@ void test_transmit_packet_function( void * _context, int index, uint16_t sequenc
     if ( ( sequence % 5 ) == 0 )
         return;
 
-    if ( index == 0 )
+    if ( id == 0 )
     {
         reliable_endpoint_receive_packet( context->server, packet_data, packet_bytes );
     }
-    else if ( index == 1 )
+    else if ( id == 1 )
     {
         reliable_endpoint_receive_packet( context->client, packet_data, packet_bytes );
     }
@@ -133,14 +133,14 @@ void check_packet_data( uint8_t * packet_data, int packet_bytes )
     }
 }
 
-int test_process_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+int test_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     assert( packet_data );
     assert( packet_bytes > 0 );
     assert( packet_bytes <= MAX_PACKET_BYTES );
 
     (void) context;
-    (void) index;
+    (void) id;
     (void) sequence;
 
     check_packet_data( packet_data, packet_bytes );
@@ -171,7 +171,7 @@ void stats_initialize()
     strcpy( client_config.name, "client" );
 #endif
     client_config.context = &global_context;
-    client_config.index = 0;
+    client_config.id = 0;
     client_config.transmit_packet_function = &test_transmit_packet_function;
     client_config.process_packet_function = &test_process_packet_function;
 
@@ -181,7 +181,7 @@ void stats_initialize()
     strcpy( server_config.name, "server" );
 #endif
     server_config.context = &global_context;
-    server_config.index = 1;
+    server_config.id = 1;
     server_config.transmit_packet_function = &test_transmit_packet_function;
     server_config.process_packet_function = &test_process_packet_function;
 

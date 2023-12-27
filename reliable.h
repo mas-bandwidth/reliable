@@ -97,7 +97,7 @@ struct reliable_config_t
 {
     char name[256];
     void * context;
-    int index;
+    uint64_t id;
     int max_packet_size;
     int fragment_above;
     int max_fragments;
@@ -110,8 +110,8 @@ struct reliable_config_t
     float packet_loss_smoothing_factor;
     float bandwidth_smoothing_factor;
     int packet_header_size;
-    void (*transmit_packet_function)(void*,int,uint16_t,uint8_t*,int);
-    int (*process_packet_function)(void*,int,uint16_t,uint8_t*,int);
+    void (*transmit_packet_function)(void*,uint64_t,uint16_t,uint8_t*,int);
+    int (*process_packet_function)(void*,uint64_t,uint16_t,uint8_t*,int);
     void * allocator_context;
     void * (*allocate_function)(void*,size_t);
     void (*free_function)(void*,void*);

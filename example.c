@@ -34,9 +34,9 @@ struct connection_t
 static struct connection_t client;
 static struct connection_t server;
 
-static void transmit_packet( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    (void) index;
+    (void) id;
     (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
@@ -60,10 +60,10 @@ static void transmit_packet( void * context, int index, uint16_t sequence, uint8
     }
 }
 
-static int process_packet( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
-    (void) index;
+    (void) id;
     (void) sequence;
     (void) packet_data;
     (void) packet_bytes;

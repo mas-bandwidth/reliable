@@ -53,19 +53,19 @@ double global_time = 100.0;
 
 struct reliable_endpoint_t * endpoint;
 
-void test_transmit_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+void test_transmit_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
-    (void) index;
+    (void) id;
     (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
 }
 
-int test_process_packet_function( void * context, int index, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+int test_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
-    (void) index;
+    (void) id;
     (void) sequence;
     (void) packet_data;
     (void) packet_bytes;
@@ -80,8 +80,8 @@ void fuzz_initialize()
     
     reliable_default_config( &config );
 
-    config.index = 0;
     config.transmit_packet_function = &test_transmit_packet_function;
+
     config.process_packet_function = &test_process_packet_function;
 
     endpoint = reliable_endpoint_create( &config, global_time );
