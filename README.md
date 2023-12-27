@@ -14,7 +14,7 @@ reliable is stable and production ready.
 
 # Usage
 
-Reliable is designed to operate with your own network library and your own sockets.
+Reliable is designed to operate with your own network library and sockets.
 
 To use reliable, create an endpoint on each side of the connection:
 
@@ -62,6 +62,31 @@ static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8
 
     return 1;
 }
+```
+
+Now you can send packets through the endpoints:
+
+```c
+uint8_t packet[8];
+memset( packet, 0, sizeof( packet ) );
+reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
+```
+
+And get acks like this:
+
+```c
+int num_acks;
+uint16_t * acks = reliable_endpoint_get_acks( endpoint, &num_acks );
+for ( int i = 0; i < num_acks; i++ )
+{
+    printf( "acked packet %d\n", acks[j] );
+}
+```
+
+When you are finished with the endpoint, destroy it:
+
+```c
+reliable_endpoint_destroy( endpoint );
 ```
 
 # Author
