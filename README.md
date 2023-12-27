@@ -38,6 +38,32 @@ if ( endpoint == NULL )
 }
 ```
 
+Next, create a function to send packets:
+
+```c
+static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) context;              // void* pointer that you can set via config
+    (void) id;                   // uint64_t client id. set this to anything you want in config
+    (void) sequence;             // sequence number of packet being sent
+    (void) packet_data;          // the packet data
+    (void) packet_bytes;         // size of the packet in bytes
+
+    // send packet using sockets
+}
+```
+
+And a function to process received packets:
+
+```c
+static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    // read the packet here and process its contents, return 0 if the packet should not be acked
+
+    return 1;
+}
+```
+
 # Author
 
 The author of this library is Glenn Fiedler.
