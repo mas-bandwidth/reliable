@@ -128,7 +128,6 @@ These people are awesome:
     
 * **Silver Sponsors**
     * [Moon Studios](http://www.oriblindforest.com/#!moon-3/)
-    * [Mas Bandwidth](https://www.mas-bandwidth.com)
     * The Network Protocol Company
     
 * **Bronze Sponsors**
