@@ -102,7 +102,7 @@ reliable_endpoint_destroy( endpoint );
 
 The author of this library is Glenn Fiedler.
 
-Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode) and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
+Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode), [serialize](https://github.com/mas-bandwidth/serialize),  and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
 
 If you find this software useful, [please consider sponsoring it](https://github.com/sponsors/mas-bandwidth).
 
