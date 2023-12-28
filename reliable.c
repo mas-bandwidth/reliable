@@ -2088,21 +2088,13 @@ void test_packets()
     sender_config.fragment_above = 500;
     receiver_config.fragment_above = 500;
 
-#if defined(_MSC_VER)
-    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
-#else
-    strcpy( sender_config.name, "sender" );
-#endif
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
     sender_config.context = &context;
     sender_config.id = 0;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function_validate;
 
-#if defined(_MSC_VER)
-    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
-#else
-    strcpy( receiver_config.name, "receiver" );
-#endif
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
     receiver_config.context = &context;
     receiver_config.id = 1;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
@@ -2162,21 +2154,13 @@ void test_large_packets()
     sender_config.fragment_above = TEST_MAX_PACKET_BYTES;
     receiver_config.fragment_above = TEST_MAX_PACKET_BYTES;
 
-#if defined(_MSC_VER)
-    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
-#else
-    strcpy( sender_config.name, "sender" );
-#endif
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
     sender_config.context = &context;
     sender_config.id = 0;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function_validate_large;
 
-#if defined(_MSC_VER)
-    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
-#else
-    strcpy( receiver_config.name, "receiver" );
-#endif
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
     receiver_config.context = &context;
     receiver_config.id = 1;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
@@ -2222,21 +2206,13 @@ void test_sequence_buffer_rollover()
     sender_config.fragment_above = 500;
     receiver_config.fragment_above = 500;
 
-#if defined(_MSC_VER)
-    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
-#else
-    strcpy( sender_config.name, "sender" );
-#endif
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
     sender_config.context = &context;
     sender_config.id = 0;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function;
 
-#if defined(_MSC_VER)
-    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
-#else
-    strcpy( receiver_config.name, "receiver" );
-#endif
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
     receiver_config.context = &context;
     receiver_config.id = 1;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;
@@ -2335,21 +2311,13 @@ void test_fragment_cleanup()
     receiver_config.free_function = &test_tracking_free_function;
     receiver_config.fragment_reassembly_buffer_size = 4;
 
-#if defined(_MSC_VER)
-    strcpy_s( sender_config.name, sizeof( sender_config.name ), "sender" );
-#else
-    strcpy( sender_config.name, "sender" );
-#endif
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
     sender_config.context = &context;
     sender_config.id = 0;
     sender_config.transmit_packet_function = &test_transmit_packet_function;
     sender_config.process_packet_function = &test_process_packet_function;
 
-#if defined(_MSC_VER)
-    strcpy_s( receiver_config.name, sizeof( receiver_config.name ), "receiver" );
-#else
-    strcpy( receiver_config.name, "receiver" );
-#endif
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
     receiver_config.context = &context;
     receiver_config.id = 1;
     receiver_config.transmit_packet_function = &test_transmit_packet_function;

@@ -168,21 +168,13 @@ void soak_initialize()
     client_config.fragment_above = 500;
     server_config.fragment_above = 500;
 
-#ifdef _MSC_VER
-    strcpy_s( client_config.name, sizeof( client_config.name ), "client" );
-#else
-    strcpy( client_config.name, "client" );
-#endif
+    reliable_copy_string( client_config.name, "client", sizeof( client_config.name ) );
     client_config.context = &global_context;
     client_config.id = 0;
     client_config.transmit_packet_function = &test_transmit_packet_function;
     client_config.process_packet_function = &test_process_packet_function;
 
-#ifdef _MSC_VER
-    strcpy_s( server_config.name, sizeof( server_config.name ), "server" );
-#else
-    strcpy( server_config.name, "server" );
-#endif
+    reliable_copy_string( server_config.name, "server", sizeof( server_config.name ) );
     server_config.context = &global_context;
     server_config.id = 1;
     server_config.transmit_packet_function = &test_transmit_packet_function;
