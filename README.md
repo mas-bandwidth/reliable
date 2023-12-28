@@ -14,9 +14,9 @@ reliable is stable and production ready.
 
 # Usage
 
-Reliable is designed to operate with your own network library and sockets.
+Reliable is designed to operate with your own network socket library.
 
-If you don't have one of these already, try [netcode](https://github.com/mas-bandwidth/netcode), it was designed to work well with reliable.
+If you don't have this already, try [netcode](https://github.com/mas-bandwidth/netcode), it was designed to work well with reliable.
 
 First, create an endpoint on each side of the connection:
 
@@ -42,16 +42,16 @@ if ( endpoint == NULL )
 
 For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints on each peer.
 
-You can name your endpoints for debugging by setting _name_ in the config, and use any combination of _context_ and _id_ so you know how to send and receive packets per-endpoint. 
+You can name your endpoints by setting _name_ in the config and use any combination of _context_ and _id_ so you know how to send and receive packets for that endpoint.
 
-For example, an endpoint beloning to a client would know to send packets to the server IP address, and a client endpoint on a server would know to send packets to the address of the specific client via _id_.
+For example, an endpoint belonging to a client would send packets to the server IP address, and a client endpoint on the server would know to send packets to the address of that specific client via _id_.
 
 Next, create a function to transmit packets:
 
 ```c
 static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    // send packet using your own sockets
+    // send packet using your own udp socket
 }
 ```
 
@@ -61,12 +61,11 @@ And a function to process received packets:
 static int process_packet( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     // read the packet here and process its contents, return 0 if the packet should not be acked
-
     return 1;
 }
 ```
 
-And for each packet you receive from your socket, call this on the corresponding endpoint:
+For each packet you receive from your udp socket, call this on the endpoint that should receive it:
 
 ```c
 reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
@@ -80,7 +79,9 @@ memset( packet, 0, sizeof( packet ) );
 reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
 ```
 
-And the process packet will be called for each packet received by the endpoint, and you can get acks for packets sent through an endpoint like this:
+And the process packet callback will be called for each packet received by the endpoint.
+
+You can get acks for packets sent through an endpoint like this:
 
 ```c
 int num_acks;
@@ -103,9 +104,11 @@ The author of this library is Glenn Fiedler.
 
 Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode) and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
 
+If you find this software useful, [please consider sponsoring it](https://github.com/sponsors/mas-bandwidth).
+
 # Source Code
 
-This repository holds the reference implementation of reliable in C.
+This repository holds the implementation of reliable in C.
 
 Other reliable implementations include:
 
@@ -116,25 +119,6 @@ Other reliable implementations include:
 These people are awesome:
 
 * [Walter Pearce](https://github.com/jaynus) - Rust Implementation
-
-# Sponsors
-
-**reliable** was generously sponsored by:
-
-* **Gold Sponsors**
-    * [Remedy Entertainment](http://www.remedygames.com/)
-    * [Cloud Imperium Games](https://cloudimperiumgames.com)
-    
-* **Silver Sponsors**
-    * [Moon Studios](http://www.oriblindforest.com/#!moon-3/)
-    * [Mas Bandwidth](https://www.mas-bandwidth.com)
-    * The Network Protocol Company
-    
-* **Bronze Sponsors**
-    * Kite & Lightning
-    * [Data Realms](http://datarealms.com)
- 
-And by individual supporters on Patreon. Thank you. You made this possible!
 
 # License
 
