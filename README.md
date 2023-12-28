@@ -92,6 +92,12 @@ for ( int i = 0; i < num_acks; i++ )
 }
 ```
 
+Once you process all acks, clear acks on the endpoint:
+
+```c
+reliable_endpoint_clear_acks( endpoint );
+```
+
 When you are finished with an endpoint, destroy it:
 
 ```c
