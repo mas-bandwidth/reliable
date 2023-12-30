@@ -72,9 +72,7 @@ reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
 Now you can send packets through the endpoint:
 
 ```c
-uint8_t packet[8];
-memset( packet, 0, sizeof( packet ) );
-reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
+reliable_endpoint_send_packet( endpoint, packet_data, packet_bytes );
 ```
 
 And can get acks for packets sent through an endpoint like this:
