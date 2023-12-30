@@ -79,9 +79,7 @@ memset( packet, 0, sizeof( packet ) );
 reliable_endpoint_send_packet( endpoint, packet, sizeof( packet ) );
 ```
 
-And the process packet callback will be called for each packet received by the endpoint.
-
-You can get acks for packets sent through an endpoint like this:
+And can get acks for packets sent through an endpoint like this:
 
 ```c
 int num_acks;
