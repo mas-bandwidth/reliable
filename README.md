@@ -92,11 +92,13 @@ Once you process all acks, clear acks on the endpoint:
 reliable_endpoint_clear_acks( endpoint );
 ```
 
-Update each endpoint once per-frame, so it keeps track of network connection stats like latency, packet loss and bandwidth sent, received and acked:
+And make sure to update each endpoint once per-frame, so it keeps track of network connection stats like latency, packet loss and bandwidth sent, received and acked:
 
 ```c
 reliable_endpoint_update( endpoint, time );
 ```
+
+See the [stats.c](stats.c) example for more details.
 
 When you are finished with an endpoint, destroy it:
 
