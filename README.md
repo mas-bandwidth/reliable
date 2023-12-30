@@ -98,8 +98,6 @@ And make sure to update each endpoint once per-frame, so it keeps track of netwo
 reliable_endpoint_update( endpoint, time );
 ```
 
-See the [stats.c](stats.c) example for more details.
-
 When you are finished with an endpoint, destroy it:
 
 ```c
