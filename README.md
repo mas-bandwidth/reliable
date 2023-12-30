@@ -42,9 +42,7 @@ if ( endpoint == NULL )
 
 For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints on each peer, one for each of the other peers.
 
-You can name your endpoints by setting _name_ in the config and can use any combination of _context_ and _id_ so you know how to send and receive packets for that endpoint.
-
-For example, an endpoint belonging to a client would send packets to the server IP address, and a client endpoint on the server would know to send packets to the address of that specific client via _id_.
+You can name your endpoints by setting _name_ in the config and can use any combination of _context_ and _id_ so you know how to send and receive packets for that endpoint. For example, an endpoint belonging to a client would send packets to the server IP address, and a client endpoint on the server would know to send packets to the address of that specific client via _id_.
 
 Next, create a function to transmit packets:
 
