@@ -75,7 +75,7 @@ Now you can send packets through the endpoint:
 reliable_endpoint_send_packet( endpoint, packet_data, packet_bytes );
 ```
 
-And can get acks for packets sent through an endpoint like this:
+And get acks like this:
 
 ```c
 int num_acks;
