@@ -4,6 +4,8 @@
 
 **reliable** is a simple packet acknowledgement system for UDP-based protocols.
 
+![image](https://github.com/mas-bandwidth/reliable/assets/696656/c58edcde-8bff-4683-8bc9-36c562ee7570)
+
 It has the following features:
 
 1. Acknowledgement when packets are received
