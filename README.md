@@ -42,7 +42,7 @@ if ( endpoint == NULL )
 }
 ```
 
-For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot. In a fully connected peer-to-peer mesh with n peers, you would have n-1 endpoints on each peer, one for each of the other peers.
+For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot.
 
 Next, create a function to transmit packets:
 
