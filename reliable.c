@@ -1291,6 +1291,13 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
 
+    endpoint->time                    = 0;
+    endpoint->rtt                     = 0;
+    endpoint->packet_loss             = 0;
+    endpoint->sent_bandwidth_kbps     = 0;
+    endpoint->received_bandwidth_kbps = 0;
+    endpoint->acked_bandwidth_kbps    = 0;
+    
     endpoint->num_acks = 0;
     endpoint->sequence = 0;
 
