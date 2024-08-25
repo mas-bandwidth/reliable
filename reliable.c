@@ -2259,7 +2259,7 @@ void * test_tracking_allocate_function( void * context, size_t bytes )
 {
     struct test_tracking_allocate_context_t* tracking_context = (struct test_tracking_allocate_context_t*)context;
     void * allocation = malloc( bytes );
-    int tracking_index;
+    int tracking_index = (int) ARRAY_LENGTH(tracking_context->active_allocations);
     for ( tracking_index = 0; tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations); ++tracking_index )
     {
         if ( tracking_context->active_allocations[tracking_index] == NULL )
@@ -2276,7 +2276,7 @@ void * test_tracking_allocate_function( void * context, size_t bytes )
 void test_tracking_free_function( void * context, void * pointer )
 {
     struct test_tracking_allocate_context_t* tracking_context = (struct test_tracking_allocate_context_t*)context;
-    int tracking_index;
+    int tracking_index = (int) ARRAY_LENGTH(tracking_context->active_allocations);
     for ( tracking_index = 0; tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations); ++tracking_index )
     {
         if ( tracking_context->active_allocations[tracking_index] == pointer )
