@@ -2119,7 +2119,7 @@ void test_packets()
             uint8_t packet_data[TEST_MAX_PACKET_BYTES];
             uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
             int packet_bytes = generate_packet_data( sequence, packet_data );
-            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+            reliable_endpoint_send_packet( context.receiver, packet_data, packet_bytes );
         }
 
         reliable_endpoint_update( context.sender, time );
@@ -2227,7 +2227,6 @@ void test_sequence_buffer_rollover()
     {
         uint8_t packet_data[16];
         int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-        reliable_endpoint_next_packet_sequence( context.sender );
         reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
 
         ++num_packets_sent;
@@ -2235,7 +2234,6 @@ void test_sequence_buffer_rollover()
 
     uint8_t packet_data[TEST_MAX_PACKET_BYTES];
     int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-    reliable_endpoint_next_packet_sequence( context.sender );
     reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
     ++num_packets_sent;
 
