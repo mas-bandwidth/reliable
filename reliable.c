@@ -508,6 +508,8 @@ struct reliable_endpoint_t
     struct reliable_config_t config;
     double time;
     float rtt;
+    float rtt_min;
+    float jitter;
     float packet_loss;
     float sent_bandwidth_kbps;
     float received_bandwidth_kbps;
@@ -515,6 +517,7 @@ struct reliable_endpoint_t
     int num_acks;
     uint16_t * acks;
     uint16_t sequence;
+    float * rtt_history_buffer;
     struct reliable_sequence_buffer_t * sent_packets;
     struct reliable_sequence_buffer_t * received_packets;
     struct reliable_sequence_buffer_t * fragment_reassembly;
@@ -556,9 +559,10 @@ void reliable_default_config( struct reliable_config_t * config )
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
     config->rtt_smoothing_factor = 0.0025f;
+    config->rtt_history_size = 512;
     config->packet_loss_smoothing_factor = 0.1f;
     config->bandwidth_smoothing_factor = 0.1f;
-    config->packet_header_size = 28;        // note: UDP over IPv4 = 20 + 8 bytes, UDP over IPv6 = 40 + 8 bytes
+    config->packet_header_size = 28;                    // note: UDP over IPv4 = 20 + 8 bytes, UDP over IPv6 = 40 + 8 bytes
 }
 
 struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t * config, double time )
@@ -574,6 +578,7 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     reliable_assert( config->received_packets_buffer_size > 0 );
     reliable_assert( config->transmit_packet_function != NULL );
     reliable_assert( config->process_packet_function != NULL );
+    reliable_assert( config->rtt_history_size > 0 );
 
     void * allocator_context = config->allocator_context;
     void * (*allocate_function)(void*,size_t) = config->allocate_function;
@@ -601,7 +606,7 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->config = *config;
     endpoint->time = time;
 
-    endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof( uint16_t ) );
+    endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof(uint16_t) );
     
     endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, 
                                                               sizeof( struct reliable_sent_packet_data_t ), 
@@ -621,7 +626,14 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
                                                                      allocate_function, 
                                                                      free_function );
 
-    memset( endpoint->acks, 0, config->ack_buffer_size * sizeof( uint16_t ) );
+    endpoint->rtt_history_buffer = (float*) allocate_function( allocator_context, config->rtt_history_size * sizeof(float) );
+
+    for ( int i = 0; i < config->rtt_history_size; i++ )
+    {
+        endpoint->rtt_history_buffer[i] = -1.0f;
+    }
+
+    memset( endpoint->acks, 0, config->ack_buffer_size * sizeof(uint16_t) );
 
     return endpoint;
 }
@@ -632,6 +644,8 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     reliable_assert( endpoint->acks );
     reliable_assert( endpoint->sent_packets );
     reliable_assert( endpoint->received_packets );
+    reliable_assert( endpoint->fragment_reassembly );
+    reliable_assert( endpoint->rtt_history_buffer );
 
     int i;
     for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
@@ -651,6 +665,8 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     reliable_sequence_buffer_destroy( endpoint->sent_packets );
     reliable_sequence_buffer_destroy( endpoint->received_packets );
     reliable_sequence_buffer_destroy( endpoint->fragment_reassembly );
+
+    endpoint->free_function( endpoint->allocator_context, endpoint->rtt_history_buffer );
 
     endpoint->free_function( endpoint->allocator_context, endpoint );
 }
@@ -1141,8 +1157,14 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                         endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                         sent_packet_data->acked = 1;
 
-                        float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                        const float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                        
                         reliable_assert( rtt >= 0.0 );
+
+                        int index = ack_sequence % endpoint->config.rtt_history_size;
+
+                        endpoint->rtt_history_buffer[index] = rtt;
+
                         if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
                         {
                             endpoint->rtt = rtt;
@@ -1291,13 +1313,6 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
 
-    endpoint->time                    = 0;
-    endpoint->rtt                     = 0;
-    endpoint->packet_loss             = 0;
-    endpoint->sent_bandwidth_kbps     = 0;
-    endpoint->received_bandwidth_kbps = 0;
-    endpoint->acked_bandwidth_kbps    = 0;
-    
     endpoint->num_acks = 0;
     endpoint->sequence = 0;
 
@@ -1327,7 +1342,45 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
     reliable_assert( endpoint );
 
     endpoint->time = time;
-    
+
+    // calculate min rtt
+    {
+        float min_rtt = 10000.0f;
+        for ( int i = 0; i < endpoint->config.rtt_history_size; i++ )
+        {
+            if ( endpoint->rtt_history_buffer[i] >= 0.0f && endpoint->rtt_history_buffer[i] < min_rtt )
+            {
+                min_rtt = endpoint->rtt_history_buffer[i];
+            }
+        }
+        if ( min_rtt == 10000.0f )
+        {
+            min_rtt = 0.0f;
+        }
+        endpoint->rtt_min = min_rtt;
+    }
+
+    // calculate jitter
+    {
+        float sum = 0.0f;
+        int count = 0;
+        for ( int i = 0; i < endpoint->config.rtt_history_size; i++ )
+        {
+            if ( endpoint->rtt_history_buffer[i] >= 0.0f )
+            {
+                sum += endpoint->rtt_history_buffer[i];
+            }
+        }
+        if ( count > 0 )
+        {
+            endpoint->jitter = sum / (float)count;
+        }
+        else
+        {
+            endpoint->jitter = 0.0f;
+        }
+    }
+
     // calculate packet loss
     {
         uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
@@ -1483,6 +1536,18 @@ float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
     return endpoint->rtt;
+}
+
+float reliable_endpoint_rtt_min( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->rtt_min;
+}
+
+float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->jitter;
 }
 
 float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint )
@@ -2126,7 +2191,7 @@ void test_packets()
             uint8_t packet_data[TEST_MAX_PACKET_BYTES];
             uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
             int packet_bytes = generate_packet_data( sequence, packet_data );
-            reliable_endpoint_send_packet( context.receiver, packet_data, packet_bytes );
+            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
         }
 
         reliable_endpoint_update( context.sender, time );
@@ -2234,6 +2299,7 @@ void test_sequence_buffer_rollover()
     {
         uint8_t packet_data[16];
         int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
+        reliable_endpoint_next_packet_sequence( context.sender );
         reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
 
         ++num_packets_sent;
@@ -2241,6 +2307,7 @@ void test_sequence_buffer_rollover()
 
     uint8_t packet_data[TEST_MAX_PACKET_BYTES];
     int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
+    reliable_endpoint_next_packet_sequence( context.sender );
     reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
     ++num_packets_sent;
 
