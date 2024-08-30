@@ -509,6 +509,8 @@ struct reliable_endpoint_t
     double time;
     float rtt;
     float rtt_min;
+    float rtt_max;
+    float rtt_avg;
     float jitter;
     float packet_loss;
     float sent_bandwidth_kbps;
@@ -1343,14 +1345,27 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
 
     endpoint->time = time;
 
-    // calculate min rtt
+    // calculate min and max rtt
     {
         float min_rtt = 10000.0f;
+        float max_rtt = 0.0f;
+        float sum_rtt = 0.0f;
+        int count = 0;
         for ( int i = 0; i < endpoint->config.rtt_history_size; i++ )
         {
-            if ( endpoint->rtt_history_buffer[i] >= 0.0f && endpoint->rtt_history_buffer[i] < min_rtt )
+            const float rtt = endpoint->rtt_history_buffer[i];
+            if ( rtt >= 0.0f )
             {
-                min_rtt = endpoint->rtt_history_buffer[i];
+                if ( rtt < min_rtt )
+                {
+                    min_rtt = rtt;
+                }
+                if ( rtt > max_rtt )
+                {
+                    max_rtt = rtt;
+                }
+                sum_rtt += rtt;
+                count++;
             }
         }
         if ( min_rtt == 10000.0f )
@@ -1358,6 +1373,15 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
             min_rtt = 0.0f;
         }
         endpoint->rtt_min = min_rtt;
+        endpoint->rtt_max = max_rtt;
+        if ( count > 0 )
+        {
+            endpoint->rtt_avg = sum_rtt / (float)count;
+        }
+        else
+        {
+            endpoint->rtt_avg = 0.0f;
+        }
     }
 
     // calculate jitter
@@ -1542,6 +1566,18 @@ float reliable_endpoint_rtt_min( struct reliable_endpoint_t * endpoint )
 {
     reliable_assert( endpoint );
     return endpoint->rtt_min;
+}
+
+float reliable_endpoint_rtt_max( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->rtt_max;
+}
+
+float reliable_endpoint_rtt_avg( struct reliable_endpoint_t * endpoint )
+{
+    reliable_assert( endpoint );
+    return endpoint->rtt_avg;
 }
 
 float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint )
@@ -2454,7 +2490,7 @@ void test_fragment_cleanup()
 
 void reliable_test()
 {
-    //while ( 1 )
+    // while ( 1 )
     {
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );

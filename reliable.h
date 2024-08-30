@@ -142,6 +142,10 @@ float reliable_endpoint_rtt( struct reliable_endpoint_t * endpoint );
 
 float reliable_endpoint_rtt_min( struct reliable_endpoint_t * endpoint );
 
+float reliable_endpoint_rtt_max( struct reliable_endpoint_t * endpoint );
+
+float reliable_endpoint_rtt_avg( struct reliable_endpoint_t * endpoint );
+
 float reliable_endpoint_jitter( struct reliable_endpoint_t * endpoint );
 
 float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint );
