@@ -4,7 +4,7 @@
 
 **reliable** is a simple packet acknowledgement system for UDP-based protocols.
 
-It's useful in situations when you need to know which UDP packets you sent were received by the other side.
+It's useful in situations where you need to know which UDP packets you sent were received by the other side.
 
 ![image](https://github.com/mas-bandwidth/reliable/assets/696656/c58edcde-8bff-4683-8bc9-36c562ee7570)
 
