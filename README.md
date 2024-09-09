@@ -12,7 +12,7 @@ It has the following features:
 
 1. Acknowledgement when packets are received
 2. Packet fragmentation and reassembly
-3. RTT and packet loss estimates
+3. RTT, jitter and packet loss estimates
 
 reliable is stable and production ready.
 
