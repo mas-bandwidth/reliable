@@ -88,13 +88,13 @@ for ( int i = 0; i < num_acks; i++ )
 }
 ```
 
-Once you process all acks, clear acks on the endpoint:
+Once you process all acks, clear them:
 
 ```c
 reliable_endpoint_clear_acks( endpoint );
 ```
 
-And make sure to update each endpoint once per-frame, so it keeps track of network connection stats like latency, packet loss and bandwidth sent, received and acked:
+And make sure to update each endpoint once per-frame, so it keeps track of network connection stats like latency, jitter, packet loss and bandwidth:
 
 ```c
 reliable_endpoint_update( endpoint, time );
