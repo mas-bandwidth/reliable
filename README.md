@@ -94,10 +94,30 @@ Once you process all acks, clear them:
 reliable_endpoint_clear_acks( endpoint );
 ```
 
-And make sure to update each endpoint once per-frame, so it keeps track of network connection stats like latency, jitter, packet loss and bandwidth:
+Before you send a packet, you can ask reliable what sequence number the sent packet will have:
+
+```c
+uint16_t sequence = reliable_endpoint_next_packet_sequence( endpoint );
+```
+
+This way you can map acked sequence numbers to the contents of packets you sent, for example to resend unacked messages until a packet that included that message was acked.
+
+Make sure to update each endpoint once per-frame. This keeps track of network stats like latency, jitter, packet loss and bandwidth:
 
 ```c
 reliable_endpoint_update( endpoint, time );
+```
+
+You can then grab stats from the endpoint:
+
+```c
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %dms | jitter = %dms | packet loss = %d%% | sent = %dkbps | recv = %dkbps | acked = %dkbps\n", 
+        counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
+        counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
+        counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
+        (int) reliable_endpoint_rtt_min( global_context.client ),
+        (int) reliable_endpoint_jitter( global_context.client ),
+        (int) ( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ),
 ```
 
 When you are finished with an endpoint, destroy it:
