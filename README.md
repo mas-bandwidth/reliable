@@ -113,7 +113,7 @@ You can then grab stats from the endpoint:
 ```c
     printf( rtt = %.1fms | jitter = %.1fms | packet loss = %.1f%%\n", 
         reliable_endpoint_rtt_min( endpoint ),
-        reliable_endpoint_jitter( endpoint ),
+        reliable_endpoint_jitter_avg_vs_min_rtt( endpoint ),
         reliable_endpoint_packet_loss( endpoint ) ),
 ```
 
