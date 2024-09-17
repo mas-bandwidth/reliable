@@ -217,11 +217,10 @@ void stats_iteration( double time )
     float sent_bandwidth_kbps, received_bandwidth_kbps, acked_bandwidth_kbps;
     reliable_endpoint_bandwidth( global_context.client, &sent_bandwidth_kbps, &received_bandwidth_kbps, &acked_bandwidth_kbps );
 
-    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt avg = %dms | rtt min = %dms | jitter = %dms | packet loss = %d%% | sent = %dkbps | recv = %dkbps | acked = %dkbps\n", 
+    printf( "%" PRIi64 " sent | %" PRIi64 " received | %" PRIi64 " acked | rtt = %dms | jitter = %dms | packet loss = %d%% | sent = %dkbps | recv = %dkbps | acked = %dkbps\n", 
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED],
         counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED],
-        (int) reliable_endpoint_rtt( global_context.client ),
         (int) reliable_endpoint_rtt_min( global_context.client ),
         (int) reliable_endpoint_jitter( global_context.client ),
         (int) ( reliable_endpoint_packet_loss( global_context.client ) + 0.5f ),
