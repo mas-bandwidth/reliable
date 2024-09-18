@@ -131,14 +131,6 @@ Open source libraries by the same author include: [netcode](https://github.com/m
 
 If you find this software useful, [please consider sponsoring it](https://github.com/sponsors/mas-bandwidth). Thanks!
 
-# Source Code
-
-This repository holds the implementation of reliable in C.
-
-Other reliable implementations include:
-
-* [reliable Rust implementation](https://github.com/jaynus/reliable.io)
-
 # License
 
 [BSD 3-Clause license](https://opensource.org/licenses/BSD-3-Clause).
