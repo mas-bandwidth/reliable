@@ -139,12 +139,6 @@ Other reliable implementations include:
 
 * [reliable Rust implementation](https://github.com/jaynus/reliable.io)
 
-# Contributors
-
-These people are awesome:
-
-* [Walter Pearce](https://github.com/jaynus) - Rust Implementation
-
 # License
 
 [BSD 3-Clause license](https://opensource.org/licenses/BSD-3-Clause).
