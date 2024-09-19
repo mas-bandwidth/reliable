@@ -113,7 +113,7 @@ You can then grab stats from the endpoint:
 ```c
     printf( rtt = %.1fms | jitter = %.1fms | packet loss = %.1f%%\n", 
         reliable_endpoint_rtt_min( endpoint ),
-        reliable_endpoint_jitter( endpoint ),
+        reliable_endpoint_jitter_avg_vs_min_rtt( endpoint ),
         reliable_endpoint_packet_loss( endpoint ) ),
 ```
 
@@ -125,25 +125,11 @@ reliable_endpoint_destroy( endpoint );
 
 # Author
 
-The author of this library is Glenn Fiedler.
+The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glenn-fiedler-11b735302/).
 
 Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode), [serialize](https://github.com/mas-bandwidth/serialize),  and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
 
 If you find this software useful, [please consider sponsoring it](https://github.com/sponsors/mas-bandwidth). Thanks!
-
-# Source Code
-
-This repository holds the implementation of reliable in C.
-
-Other reliable implementations include:
-
-* [reliable Rust implementation](https://github.com/jaynus/reliable.io)
-
-# Contributors
-
-These people are awesome:
-
-* [Walter Pearce](https://github.com/jaynus) - Rust Implementation
 
 # License
 
