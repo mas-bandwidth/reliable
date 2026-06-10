@@ -9,7 +9,6 @@ solution "reliable"
     end
     rtti "Off"
     warnings "Extra"
-    flags { "FatalWarnings" }
     staticruntime "On"
     floatingpoint "Fast"
     filter "configurations:Debug"
