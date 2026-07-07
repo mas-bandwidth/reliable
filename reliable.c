@@ -997,10 +997,10 @@ int reliable_read_fragment_header( char * name,
 
     if ( *fragment_id == 0 )
     {
-        int packet_header_bytes = reliable_read_packet_header( name, 
-                                                               packet_data + RELIABLE_FRAGMENT_HEADER_BYTES, 
-                                                               packet_bytes, 
-                                                               &packet_sequence, 
+        int packet_header_bytes = reliable_read_packet_header( name,
+                                                               packet_data + RELIABLE_FRAGMENT_HEADER_BYTES,
+                                                               packet_bytes - RELIABLE_FRAGMENT_HEADER_BYTES,
+                                                               &packet_sequence,
                                                                &packet_ack, 
                                                                &packet_ack_bits );
 
