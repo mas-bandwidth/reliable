@@ -1,5 +1,3 @@
-[![Build status](https://github.com/mas-bandwidth/reliable/workflows/CI/badge.svg)](https://github.com/mas-bandwidth/reliable/actions?query=workflow%3ACI)
-
 # Introduction
 
 **reliable** is a simple packet acknowledgement system for UDP-based protocols.
