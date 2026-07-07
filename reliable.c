@@ -1257,6 +1257,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->num_fragments_total = num_fragments;
             reassembly_data->packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_buffer_size );
             reassembly_data->packet_bytes = 0;
+            reassembly_data->packet_header_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
         }
 
@@ -1526,7 +1527,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
                 finish_time = sent_packet_data->time;
             }
         }
-        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        if ( start_time != FLT_MAX && finish_time > start_time )
         {
             float sent_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->sent_bandwidth_kbps - sent_bandwidth_kbps ) > 0.00001 )
@@ -1567,7 +1568,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
                 finish_time = received_packet_data->time;
             }
         }
-        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        if ( start_time != FLT_MAX && finish_time > start_time )
         {
             float received_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->received_bandwidth_kbps - received_bandwidth_kbps ) > 0.00001 )
@@ -1608,7 +1609,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
                 finish_time = sent_packet_data->time;
             }
         }
-        if ( start_time != FLT_MAX && finish_time != 0.0 )
+        if ( start_time != FLT_MAX && finish_time > start_time )
         {
             float acked_bandwidth_kbps = (float) ( ( (double) bytes_sent ) / ( finish_time - start_time ) * 8.0f / 1000.0f );
             if ( fabs( endpoint->acked_bandwidth_kbps - acked_bandwidth_kbps ) > 0.00001 )
