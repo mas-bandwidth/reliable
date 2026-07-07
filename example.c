@@ -52,11 +52,11 @@ static void transmit_packet( void * context, uint64_t id, uint16_t sequence, uin
 
     if ( context == &client )
     {
-        reliable_endpoint_receive_packet( client.endpoint, packet_data, packet_bytes );
+        reliable_endpoint_receive_packet( server.endpoint, packet_data, packet_bytes );
     }
     else
     {
-        reliable_endpoint_receive_packet( server.endpoint, packet_data, packet_bytes );
+        reliable_endpoint_receive_packet( client.endpoint, packet_data, packet_bytes );
     }
 }
 
