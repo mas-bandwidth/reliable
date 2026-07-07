@@ -31,8 +31,7 @@
 // injection of fully random packets. Run it under AddressSanitizer / UBSan to
 // catch memory errors and undefined behaviour:
 //
-//     clang -g -O1 -fsanitize=address,undefined -DRELIABLE_DEBUG \
-//           -I. reliable.c fuzz.c -o fuzz && ./fuzz 1000000 <seed>
+//     clang -g -O1 -fsanitize=address,undefined -DRELIABLE_DEBUG -I. reliable.c fuzz.c -o fuzz && ./fuzz 1000000 <seed>
 //
 // Usage: fuzz [num_iterations] [seed]   (num_iterations <= 0 runs until Ctrl-C)
 
