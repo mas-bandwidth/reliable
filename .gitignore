@@ -8,10 +8,56 @@
 *.vcxproj.filters
 *.sln
 
-# Binary files
+# built binaries and debug info
+bin
+obj
 *.o
-*.dylib
+*.obj
+*.a
+*.lib
 *.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.dSYM/
+/test
+/example
+/soak
+/stats
+/fuzz
+/fuzz_target
+/fuzz_target_standalone
+
+# cmake generated build files (any generator, in-source or out)
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeScripts/
+CMakeCache.txt
+CMakeLists.txt.user
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+DartConfiguration.tcl
+compile_commands.json
+Testing/
+_deps/
+_CPack_Packages/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+*.xcodeproj/
+reliable.pc
 
 # Misc
 *.txt
@@ -24,26 +70,7 @@
 *.sublime-project
 *.sublime-workspace
 
-# cmake generated files (in-source configure)
-CMakeFiles/
-CMakeScripts/
-CMakeCache.txt
-CMakeLists.txt.user
-CMakeUserPresets.json
-cmake_install.cmake
-install_manifest.txt
-CTestTestfile.cmake
-compile_commands.json
-Testing/
-_deps/
-Makefile
-*.a
-*.lib
-
 # Directories we don't ever want to commit
-build
-bin
-obj
 ipch
 Debug
 release
