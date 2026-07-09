@@ -123,6 +123,16 @@ When you are finished with an endpoint, destroy it:
 reliable_endpoint_destroy( endpoint );
 ```
 
+# Caveats
+
+reliable is a packet acknowledgement system, not a full messaging layer. Keep the following in mind:
+
+1. Duplicate packets are not rejected. If a packet is duplicated or replayed within the receive window, your process packet function is called once for each copy that arrives. If you need deduplication or replay protection, implement it above reliable in your own protocol, or use [netcode](https://github.com/mas-bandwidth/netcode), which provides it.
+
+2. Acks accumulate until you call `reliable_endpoint_clear_acks`, so make sure you clear acks once you have processed them each frame. If the ack buffer fills up, additional acks are dropped and an error is logged.
+
+3. Endpoints are not thread safe. Use one endpoint per-thread, or protect each endpoint with your own lock. The log level, printf and assert handlers are global to the process.
+
 # Author
 
 The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glenn-fiedler-11b735302/).

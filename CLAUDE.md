@@ -77,32 +77,33 @@ None currently.
   (sequence buffer struct, endpoint acks + rtt history buffers, both send-path scratch
   buffers, and the fragment reassembly buffer). All now have `reliable_assert`, keeping
   release behavior untouched per the design contract.
+- **Dated endianness detection** — unlisted architectures (e.g. RISC-V) fell through to
+  `RELIABLE_BIG_ENDIAN`. Detection now prefers the compiler's `__BYTE_ORDER__` macro
+  (GCC/Clang), keeping the old architecture list as the MSVC fallback. Runtime-verified
+  by `test_endian`.
+- **Fragment 0 payload could be shifted by a non-canonical packet header** — reassembly
+  re-encodes the header canonically, so a non-canonically encoded header (e.g. an 0xFF
+  ack_bits block included explicitly) made the re-encoded size differ from the received
+  size, shifting where fragment 0's payload landed. No memory-safety impact (bounds
+  check from `f0e3be1`), but such packets reassembled corrupted.
+  `reliable_read_fragment_header` now rejects fragments whose packet header is not
+  byte-identical to the canonical encoding — the library's own sender is always
+  canonical, so only forged/corrupt packets are affected.
 
-### Design gotchas (intentional, but undocumented — callers must know)
+### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 
 - **Duplicate packets within the window are delivered twice.**
   `reliable_endpoint_receive_packet` only rejects *stale* sequences
   (`reliable_sequence_buffer_test_insert` checks age, not prior receipt), so a duplicated
   or replayed packet inside the window reaches `process_packet_function` again.
-  Deduplication/replay protection is deliberately the caller's job (netcode provides it),
-  but neither README nor header says so.
-- **Acks are silently dropped once the ack buffer fills** (reliable.c:1170). If the
-  caller doesn't call `reliable_endpoint_clear_acks` regularly, delivered packets are
-  never reported acked — which in a message layer means spurious resends, not errors.
+  Deduplication/replay protection is deliberately the caller's job (netcode provides it).
+- **Acks are dropped once the ack buffer fills** — the caller must call
+  `reliable_endpoint_clear_acks` regularly. Since 2026-07 a drop logs at error level
+  instead of being silent; the unacked packet can still be reported on a later packet's
+  ack bits while it remains within the 32-packet ack window.
 - **Not thread-safe.** Endpoints have no locking, and log level / printf / assert
   handlers are process-wide globals. One-endpoint-per-thread or external locking is
   required.
-- **The endianness detection list is dated** (reliable.h:43-56): unlisted architectures
-  (e.g. RISC-V) fall through to `RELIABLE_BIG_ENDIAN`. Harmless in practice — the
-  serialization code is explicit byte-order and only `test_endian` uses the macro — but
-  it looks load-bearing when it isn't.
-- **Fragment 0's packet header is re-encoded canonically during reassembly**
-  (`reliable_store_fragment_data`). An attacker sending a non-canonically encoded header
-  can shift where payload bytes land for fragment 0. The bounds check added in `f0e3be1`
-  confines this to corrupting the reassembled packet's own contents (which an attacker
-  who can forge packets could do anyway) — no memory-safety impact, just worth knowing
-  the invariant "re-encoded header size == received header size" only holds for
-  canonical senders.
 
 ### Style notes
 

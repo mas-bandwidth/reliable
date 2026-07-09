@@ -40,7 +40,11 @@
 #error Can only define one of debug & release
 #endif
 
-#if    defined(__386__) || defined(i386)    || defined(__i386__)  \
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  #define RELIABLE_LITTLE_ENDIAN 1
+#elif defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  #define RELIABLE_BIG_ENDIAN 1
+#elif  defined(__386__) || defined(i386)    || defined(__i386__)  \
     || defined(__X86)   || defined(_M_IX86)                       \
     || defined(_M_X64)  || defined(__x86_64__)                    \
     || defined(alpha)   || defined(__alpha) || defined(__alpha__) \

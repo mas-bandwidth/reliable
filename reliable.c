@@ -1027,6 +1027,17 @@ int reliable_read_fragment_header( char * name,
             return -1;
         }
 
+        // the packet header is re-encoded canonically during reassembly, so a non-canonical
+        // header would shift where the fragment payload lands. reject it here instead.
+
+        uint8_t canonical_header[RELIABLE_MAX_PACKET_HEADER_BYTES];
+        int canonical_header_bytes = reliable_write_packet_header( canonical_header, packet_sequence, packet_ack, packet_ack_bits );
+        if ( canonical_header_bytes != packet_header_bytes || memcmp( canonical_header, packet_data + RELIABLE_FRAGMENT_HEADER_BYTES, canonical_header_bytes ) != 0 )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] non-canonical packet header in fragment\n", name );
+            return -1;
+        }
+
         *fragment_bytes = packet_bytes - packet_header_bytes - RELIABLE_FRAGMENT_HEADER_BYTES;
     }
 
@@ -1178,28 +1189,36 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                     struct reliable_sent_packet_data_t * sent_packet_data = (struct reliable_sent_packet_data_t*) 
                         reliable_sequence_buffer_find( endpoint->sent_packets, ack_sequence );
 
-                    if ( sent_packet_data && !sent_packet_data->acked && endpoint->num_acks < endpoint->config.ack_buffer_size )
+                    if ( sent_packet_data && !sent_packet_data->acked )
                     {
-                        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
-                        endpoint->acks[endpoint->num_acks++] = ack_sequence;
-                        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
-                        sent_packet_data->acked = 1;
-
-                        const float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
-                        
-                        reliable_assert( rtt >= 0.0 );
-
-                        int index = ack_sequence % endpoint->config.rtt_history_size;
-
-                        endpoint->rtt_history_buffer[index] = rtt;
-
-                        if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
+                        if ( endpoint->num_acks < endpoint->config.ack_buffer_size )
                         {
-                            endpoint->rtt = rtt;
+                            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] acked packet %d\n", endpoint->config.name, ack_sequence );
+                            endpoint->acks[endpoint->num_acks++] = ack_sequence;
+                            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
+                            sent_packet_data->acked = 1;
+
+                            const float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+
+                            reliable_assert( rtt >= 0.0 );
+
+                            int index = ack_sequence % endpoint->config.rtt_history_size;
+
+                            endpoint->rtt_history_buffer[index] = rtt;
+
+                            if ( ( endpoint->rtt == 0.0f && rtt > 0.0f ) || fabs( endpoint->rtt - rtt ) < 0.00001 )
+                            {
+                                endpoint->rtt = rtt;
+                            }
+                            else
+                            {
+                                endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
+                            }
                         }
                         else
                         {
-                            endpoint->rtt += ( rtt - endpoint->rtt ) * endpoint->config.rtt_smoothing_factor;
+                            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ack buffer is full. dropped ack for packet %d. make sure you call reliable_endpoint_clear_acks\n",
+                                endpoint->config.name, ack_sequence );
                         }
                     }
                 }
