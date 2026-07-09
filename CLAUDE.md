@@ -98,6 +98,31 @@ None currently.
   processed, because only accepted packets enter the received buffer. Covered by
   `test_duplicate_packets`.
 
+### Scope and operating assumptions (per the maintainer, 2026-07-09 — not issues)
+
+- **Authentication and packet trust are out of scope.** reliable assumes an
+  authenticated, encrypted transport beneath it — that is netcode's job (its sister
+  library). Attacks that require forging packets (warping the receive window via a fake
+  far-future sequence, spoofing acks, injecting payloads) are netcode's problem to
+  prevent, not reliable's. Do not add authentication or spoofing defenses here.
+- **Fragmentation trades loss amplification for latency, by design.** If any fragment
+  is lost the whole packet is lost; in-progress reassemblies evicted by newer traffic
+  are the same trade. Time-sensitive delivery comes first. Callers who need large
+  blocks delivered reliably should implement block transfer at a higher level (yojimbo
+  does this on top of reliable) rather than routinely sending very large packets.
+- **Continuous bidirectional packet exchange is assumed.** reliable is designed for
+  protocols like action games that send packets both ways at ~60Hz, continually. Acks
+  piggyback on outgoing packets, so one-directional or bursty request/response traffic
+  is out of scope — no keepalives exist because there are never lulls. Stats
+  (rtt/jitter/loss over the recent history window) are fresh under the same assumption.
+- **16-bit sequence numbers are sized for this send rate.** At game-style packet rates
+  the wrap interval is ample; bulk-transfer rates are out of scope.
+- **Duplicated fragment sets re-reassemble before being dropped.** A replayed complete
+  fragment set for an already-delivered sequence is re-reassembled (one buffer
+  alloc/copy/free) and then dropped by the duplicate check at delivery — the process
+  function is never called twice. Accepted minor inefficiency; real duplication rarely
+  delivers a whole fragment set.
+
 ### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 
 - **Acks are dropped once the ack buffer fills** — the caller must call
