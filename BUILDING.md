@@ -48,6 +48,8 @@ generated `build\reliable.sln` in Visual Studio and build/debug from there.
 
 ## Continuous integration
 
-Every push and pull request builds debug and release and runs the test suite plus a
-bounded fuzz run on Windows (x64), MacOS (Apple Silicon) and Linux (Ubuntu LTS), plus
-an ASan/UBSan pass on Linux. See [.github/workflows/ci.yml](.github/workflows/ci.yml).
+Every push and pull request builds debug and release and runs the test suite plus
+bounded fuzz and soak runs on Windows (x64), MacOS (Apple Silicon) and Linux (Ubuntu
+LTS), plus an ASan/UBSan pass on Linux. A weekly scheduled job runs 2 million fuzz
+iterations under ASan/UBSan with a fresh seed (it can also be triggered manually from
+the Actions tab). See [.github/workflows/ci.yml](.github/workflows/ci.yml).

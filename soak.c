@@ -149,13 +149,16 @@ int test_process_packet_function( void * context, uint64_t id, uint16_t sequence
     return 1;
 }
 
-void soak_initialize()
+void soak_initialize( int quiet )
 {
     printf( "initializing\n" );
 
     reliable_init();
 
-    reliable_log_level( RELIABLE_LOG_LEVEL_DEBUG );
+    if ( !quiet )
+    {
+        reliable_log_level( RELIABLE_LOG_LEVEL_DEBUG );
+    }
 
     memset( &global_context, 0, sizeof( global_context ) );
     
@@ -219,11 +222,22 @@ void soak_iteration( double time )
 int main( int argc, char ** argv )
 {
     int num_iterations = -1;
+    int quiet = 0;
 
-    if ( argc == 2 )
-        num_iterations = atoi( argv[1] );
+    int i;
+    for ( i = 1; i < argc; ++i )
+    {
+        if ( strcmp( argv[i], "--quiet" ) == 0 )
+        {
+            quiet = 1;
+        }
+        else
+        {
+            num_iterations = atoi( argv[i] );
+        }
+    }
 
-    soak_initialize();
+    soak_initialize( quiet );
 
     signal( SIGINT, interrupt_handler );
 

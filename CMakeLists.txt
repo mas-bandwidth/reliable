@@ -57,3 +57,4 @@ enable_testing()
 
 add_test(NAME test COMMAND reliable_test)
 add_test(NAME fuzz COMMAND fuzz 20000 12345)
+add_test(NAME soak COMMAND soak 8192 --quiet)

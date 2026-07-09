@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main ]
   pull_request:
+  schedule:
+    - cron: '0 8 * * 1'   # weekly deep fuzz, mondays 08:00 UTC
+  workflow_dispatch:
 
 jobs:
 
@@ -46,3 +49,21 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  deep-fuzz:
+    name: deep fuzz (asan + ubsan, weekly)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELIABLE_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # fresh seed every run (printed to the log, so failures are reproducible)
+      - name: Fuzz (2M iterations)
+        run: ./build/bin/fuzz 2000000

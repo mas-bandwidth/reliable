@@ -14,12 +14,14 @@ Build and test (CMake, 3.15+):
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Debug        # or Release; on Windows: cmake -B build -A x64
 cmake --build build                            # on Windows add: --config Debug
-ctest --test-dir build --output-on-failure     # runs the test suite + a bounded fuzz run
+ctest --test-dir build --output-on-failure     # runs the test suite + bounded fuzz and soak runs
 ```
 
 Binaries land in `build/bin` (`build/bin/<Config>` on Windows). Add
 `-DRELIABLE_SANITIZE=ON` for ASan+UBSan. CI (`.github/workflows/ci.yml`) runs
-Debug+Release on Windows x64, macOS arm64, and Ubuntu LTS, plus a sanitizer job.
+Debug+Release on Windows x64, macOS arm64, and Ubuntu LTS, plus a sanitizer job, plus
+a weekly 2M-iteration fresh-seed fuzz job under ASan/UBSan (manually triggerable via
+workflow_dispatch).
 
 Tests live at the bottom of `reliable.c` behind `RELIABLE_ENABLE_TESTS`, driven by
 `test.cpp`. Debug/release is selected by `RELIABLE_DEBUG` / `RELIABLE_RELEASE`; asserts
