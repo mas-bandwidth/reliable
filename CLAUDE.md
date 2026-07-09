@@ -42,23 +42,21 @@ and ran 20k fuzz iterations under ASan+UBSan (clean).
 
 That said, it is not flawless. Specific findings below, roughly in order of importance.
 
+### Design contract: release builds trust the caller (do not "fix" this)
+
+Per the maintainer (2026-07): **correct configuration is the programmer's responsibility
+in release.** Debug asserts exist to help the programmer catch bad configuration during
+development; release builds deliberately carry no validation overhead. Do not add
+release-mode config checks or defensive branches — that would be fighting the library's
+design. Concretely, this covers things like `max_fragments > 256` (would overflow
+`fragment_received[256]` on the receive path) and inconsistent
+`max_packet_size > max_fragments * fragment_size`: real caller errors, caught by asserts
+in debug, the caller's problem in release. The same trust model applies to allocators —
+the caller supplies them and is responsible for them not failing.
+
 ### Open issues
 
-1. **Allocation failure is not handled.** Allocator results are either asserted
-   (compiled out in release) or not checked at all: `reliable_sequence_buffer_create`
-   writes through the struct pointer unconditionally (reliable.c:169-183), and the
-   fragment reassembly buffer allocation at reliable.c:1258 is never checked, even in
-   debug — a failed `malloc` under memory pressure means a NULL deref on attacker-timed
-   input. Given custom allocators are a first-class feature (fixed pools that *can* run
-   dry), returning/ignoring on allocation failure would be more defensible than crashing.
-
-2. **Config validation is assert-only.** In release builds nothing stops
-   `max_fragments > 256` (overflows `fragment_received[256]` on the receive path since
-   `reliable_read_fragment_header` validates against the *configured* max), or an
-   inconsistent `max_packet_size > max_fragments * fragment_size` (sender emits more
-   fragments than the receiver accepts). These are caller errors, but they fail silently
-   or memory-unsafely in release. A few real runtime checks in
-   `reliable_endpoint_create` would be cheap.
+None currently.
 
 ### Found and fixed (2026-07, alongside the CMake migration)
 
@@ -69,6 +67,10 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
   twice and never checked the receiver's; reliable.c:2155 now checks `context.receiver`.
 - **README sample code bugs** — the ack loop indexed `acks[j]` with loop variable `i`,
   and the stats `printf` was missing its opening quote.
+- **Six allocation results lacked the debug assert** that the rest of the code applies
+  (sequence buffer struct, endpoint acks + rtt history buffers, both send-path scratch
+  buffers, and the fragment reassembly buffer). All now have `reliable_assert`, keeping
+  release behavior untouched per the design contract.
 
 ### Design gotchas (intentional, but undocumented — callers must know)
 
@@ -100,8 +102,8 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
 
 - The code is consistently C89-flavored C99 with the author's idiosyncratic spacing.
   Match it when editing; don't "modernize."
-- Error handling philosophy is assert-in-debug, trust-the-caller-in-release. Consistent,
-  but see the open issues above for where it bites.
+- Error handling philosophy is assert-in-debug, trust-the-caller-in-release. This is
+  the maintainer's explicit design contract (see above), not an accident.
 - Test coverage of the happy paths is good; adversarial coverage lives in `fuzz.c`,
   which is genuinely well constructed (loss, reorder, duplication, bit corruption,
   random injection over a simulated link).
@@ -109,6 +111,6 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
 ### Bottom line
 
 A tight, battle-tested library that does one thing well, with real fuzzing and a recent
-security pass behind it. The code earns its "production ready" claim. The one open
-decision: whether release builds should validate config and allocation failures instead
-of trusting asserts that no longer exist (the two open issues above).
+security pass behind it. The code earns its "production ready" claim. Release builds
+trusting the caller on configuration and allocation is the maintainer's explicit design
+contract — respect it. No open issues as of 2026-07.

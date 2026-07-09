@@ -166,8 +166,10 @@ struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int num_ent
         free_function = reliable_default_free_function;
     }
 
-    struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*) 
+    struct reliable_sequence_buffer_t * sequence_buffer = (struct reliable_sequence_buffer_t*)
         allocate_function( allocator_context, sizeof( struct reliable_sequence_buffer_t ) );
+
+    reliable_assert( sequence_buffer );
 
     sequence_buffer->allocator_context = allocator_context;
     sequence_buffer->allocate_function = allocate_function;
@@ -611,7 +613,10 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->time = time;
 
     endpoint->acks = (uint16_t*) allocate_function( allocator_context, config->ack_buffer_size * sizeof(uint16_t) );
-    
+
+    reliable_assert( endpoint->acks );
+
+
     endpoint->sent_packets = reliable_sequence_buffer_create( config->sent_packets_buffer_size, 
                                                               sizeof( struct reliable_sent_packet_data_t ), 
                                                               allocator_context, 
@@ -631,6 +636,8 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
                                                                      free_function );
 
     endpoint->rtt_history_buffer = (float*) allocate_function( allocator_context, config->rtt_history_size * sizeof(float) );
+
+    reliable_assert( endpoint->rtt_history_buffer );
 
     for ( int i = 0; i < config->rtt_history_size; i++ )
     {
@@ -789,6 +796,8 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
 
         uint8_t * transmit_packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_bytes + RELIABLE_MAX_PACKET_HEADER_BYTES );
 
+        reliable_assert( transmit_packet_data );
+
         int packet_header_bytes = reliable_write_packet_header( transmit_packet_data, sequence, ack, ack_bits );
 
         memcpy( transmit_packet_data + packet_header_bytes, packet_data, packet_bytes );
@@ -817,6 +826,8 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
         int fragment_buffer_size = RELIABLE_FRAGMENT_HEADER_BYTES + RELIABLE_MAX_PACKET_HEADER_BYTES + endpoint->config.fragment_size;
 
         uint8_t * fragment_packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, fragment_buffer_size );
+
+        reliable_assert( fragment_packet_data );
 
         uint8_t * q = packet_data;
 
@@ -1256,6 +1267,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->num_fragments_received = 0;
             reassembly_data->num_fragments_total = num_fragments;
             reassembly_data->packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_buffer_size );
+            reliable_assert( reassembly_data->packet_data );
             reassembly_data->packet_bytes = 0;
             reassembly_data->packet_header_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
