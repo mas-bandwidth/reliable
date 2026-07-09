@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: reliable
+Description: Simple packet acknowledgement system for UDP-based protocols
+URL: https://github.com/mas-bandwidth/reliable
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lreliable
+Cflags: -I${includedir}

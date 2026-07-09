@@ -138,6 +138,11 @@ None currently.
   `test_ack_buffer_overflow` (drop + recovery-after-clear semantics),
   `test_endpoint_reset` (state cleared, works after reset, in-progress reassembly
   freed without double-free, via tracking allocator).
+- **Install support for packaging (v1.3.1)** — `cmake --install` installs the library
+  (static by default, `-DBUILD_SHARED_LIBS=ON` for shared), `reliable.h`, and a
+  pkg-config file. The installed library no longer embeds the test suite: the test
+  binary compiles its own copy of `reliable.c` with `RELIABLE_ENABLE_TESTS=1`. Added
+  for the homebrew formula.
 - **OSS-Fuzz kit added** — `fuzz_target.c` is a libFuzzer harness (fuzz input = a
   script of send/inject operations against a live endpoint pair, exact-size heap
   copies for redzone checking); `oss-fuzz/` holds the project.yaml/Dockerfile/build.sh

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(reliable C CXX)
+project(reliable VERSION 1.3.1 LANGUAGES C CXX)
 
 option(RELIABLE_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
@@ -29,24 +29,39 @@ if(RELIABLE_SANITIZE)
     endif()
 endif()
 
-add_library(reliable STATIC reliable.c reliable.h)
+# the library. static by default; pass -DBUILD_SHARED_LIBS=ON for a shared library.
+# the unit tests are NOT compiled into the library (the test binary compiles its own
+# copy of reliable.c below), so this is what gets installed
 
-target_include_directories(reliable PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(reliable reliable.c reliable.h)
+
+target_include_directories(reliable PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>)
 
 target_compile_definitions(reliable
     PUBLIC
         $<$<CONFIG:Debug>:RELIABLE_DEBUG>
         $<$<CONFIG:Release>:RELIABLE_RELEASE>
-    PRIVATE
-        RELIABLE_ENABLE_TESTS=1
 )
 
-# "test" is a reserved target name in cmake, so the target is reliable_test
-# but the binary is still bin/test
+set_target_properties(reliable PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-add_executable(reliable_test test.cpp)
+# "test" is a reserved target name in cmake, so the target is reliable_test
+# but the binary is still bin/test. it compiles reliable.c itself with the
+# embedded test suite enabled
+
+add_executable(reliable_test test.cpp reliable.c)
 set_target_properties(reliable_test PROPERTIES OUTPUT_NAME test)
-target_link_libraries(reliable_test PRIVATE reliable)
+target_include_directories(reliable_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(reliable_test PRIVATE
+    RELIABLE_ENABLE_TESTS=1
+    $<$<CONFIG:Debug>:RELIABLE_DEBUG>
+    $<$<CONFIG:Release>:RELIABLE_RELEASE>
+)
 
 foreach(program example soak stats fuzz)
     add_executable(${program} ${program}.c)
@@ -66,3 +81,18 @@ add_test(NAME test COMMAND reliable_test)
 add_test(NAME fuzz COMMAND fuzz 20000 12345)
 add_test(NAME soak COMMAND soak 8192 --quiet)
 add_test(NAME fuzz_target COMMAND fuzz_target_standalone 500 12345)
+
+# install rules (used by package managers, e.g. the homebrew formula)
+
+include(GNUInstallDirs)
+
+install(TARGETS reliable
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+install(FILES reliable.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+configure_file(reliable.pc.in reliable.pc @ONLY)
+
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/reliable.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
