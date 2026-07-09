@@ -24,6 +24,14 @@
 *.sublime-project
 *.sublime-workspace
 
+# cmake generated files (in-source configure)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+*.a
+
 # Directories we don't ever want to commit
 build
 bin
