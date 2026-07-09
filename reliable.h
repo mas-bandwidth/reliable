@@ -69,7 +69,8 @@
 #define RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_SENT                        7
 #define RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED                    8
 #define RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID                     9
-#define RELIABLE_ENDPOINT_NUM_COUNTERS                                      10
+#define RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE                     10
+#define RELIABLE_ENDPOINT_NUM_COUNTERS                                      11
 
 #define RELIABLE_MAX_PACKET_HEADER_BYTES 9
 #define RELIABLE_FRAGMENT_HEADER_BYTES   5

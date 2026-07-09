@@ -1159,6 +1159,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
+        if ( reliable_sequence_buffer_exists( endpoint->received_packets, sequence ) )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring duplicate packet %d\n", endpoint->config.name, sequence );
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE]++;
+            return;
+        }
+
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] processing packet %d\n", endpoint->config.name, sequence );
 
         if ( endpoint->config.process_packet_function( endpoint->config.context, 
@@ -2200,6 +2207,86 @@ static void test_acks_packet_loss()
     reliable_endpoint_destroy( context.receiver );
 }
 
+static int test_duplicate_packets_num_processed = 0;
+
+static void test_duplicate_packets_transmit_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) sequence;
+
+    struct test_context_t * context = (struct test_context_t*) _context;
+
+    if ( id == 0 )
+    {
+        // deliver each packet to the receiver twice, simulating duplication on the network
+        reliable_endpoint_receive_packet( context->receiver, packet_data, packet_bytes );
+        reliable_endpoint_receive_packet( context->receiver, packet_data, packet_bytes );
+    }
+}
+
+static int test_duplicate_packets_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) context;
+    (void) id;
+    (void) sequence;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    test_duplicate_packets_num_processed++;
+
+    return 1;
+}
+
+#define TEST_DUPLICATE_PACKETS_NUM_ITERATIONS 16
+
+static void test_duplicate_packets()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_duplicate_packets_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_duplicate_packets_transmit_packet_function;
+    receiver_config.process_packet_function = &test_duplicate_packets_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    test_duplicate_packets_num_processed = 0;
+
+    int i;
+    for ( i = 0; i < TEST_DUPLICATE_PACKETS_NUM_ITERATIONS; ++i )
+    {
+        uint8_t dummy_packet[8];
+        memset( dummy_packet, 0, sizeof( dummy_packet ) );
+        reliable_endpoint_send_packet( context.sender, dummy_packet, sizeof( dummy_packet ) );
+    }
+
+    check( test_duplicate_packets_num_processed == TEST_DUPLICATE_PACKETS_NUM_ITERATIONS );
+
+    RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
+
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 2 * TEST_DUPLICATE_PACKETS_NUM_ITERATIONS );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE] == TEST_DUPLICATE_PACKETS_NUM_ITERATIONS );
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
 #define TEST_MAX_PACKET_BYTES (4*1024)
 
 static void generate_packet_data_with_size( uint16_t sequence, uint8_t * packet_data, int packet_bytes )
@@ -2611,6 +2698,7 @@ void reliable_test()
         RUN_TEST( test_packet_header );
         RUN_TEST( test_acks );
         RUN_TEST( test_acks_packet_loss );
+        RUN_TEST( test_duplicate_packets );
         RUN_TEST( test_packets );
         RUN_TEST( test_large_packets );
         RUN_TEST( test_sequence_buffer_rollover );

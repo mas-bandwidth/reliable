@@ -26,7 +26,7 @@ Tests live at the bottom of `reliable.c` behind `RELIABLE_ENABLE_TESTS`, driven 
 compile out entirely in release.
 
 **Status (2026-07-09):** premake was replaced by CMake and CI was added in July 2026
-(commits `a579740`..`9152439`). CI is green across the full matrix, there are no open
+(commit `a579740` onward). CI is green across the full matrix, there are no open
 issues, and the working tree matches main.
 
 ## Honest assessment
@@ -89,14 +89,17 @@ None currently.
   `reliable_read_fragment_header` now rejects fragments whose packet header is not
   byte-identical to the canonical encoding — the library's own sender is always
   canonical, so only forged/corrupt packets are affected.
+- **Duplicate packets within the receive window were delivered twice** — per the
+  maintainer (2026-07-09) this was an oversight, not design intent.
+  `reliable_endpoint_receive_packet` now drops sequences already present in the
+  received buffer and counts them in `RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE`.
+  Fragmented duplicates funnel through the same check at reassembled-packet delivery.
+  Retransmits of packets the caller rejected (process function returned 0) are still
+  processed, because only accepted packets enter the received buffer. Covered by
+  `test_duplicate_packets`.
 
 ### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 
-- **Duplicate packets within the window are delivered twice.**
-  `reliable_endpoint_receive_packet` only rejects *stale* sequences
-  (`reliable_sequence_buffer_test_insert` checks age, not prior receipt), so a duplicated
-  or replayed packet inside the window reaches `process_packet_function` again.
-  Deduplication/replay protection is deliberately the caller's job (netcode provides it).
 - **Acks are dropped once the ack buffer fills** — the caller must call
   `reliable_endpoint_clear_acks` regularly. Since 2026-07 a drop logs at error level
   instead of being silent; the unacked packet can still be reported on a later packet's
