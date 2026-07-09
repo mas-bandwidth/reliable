@@ -51,9 +51,3 @@ generated `build\reliable.sln` in Visual Studio and build/debug from there.
 Every push and pull request builds debug and release and runs the test suite plus a
 bounded fuzz run on Windows (x64), MacOS (Apple Silicon) and Linux (Ubuntu LTS), plus
 an ASan/UBSan pass on Linux. See [.github/workflows/ci.yml](.github/workflows/ci.yml).
-
-If you have questions please create an issue at https://github.com/mas-bandwidth/reliable and I'll do my best to help you out.
-
-cheers
-
- - Glenn
