@@ -15,6 +15,7 @@
 
 # Misc
 *.txt
+!CMakeLists.txt
 *.7z
 *.zip
 *.tar.gz
@@ -23,11 +24,8 @@
 *.sublime-project
 *.sublime-workspace
 
-# premake5 generated files
-Makefile
-*.make
-
 # Directories we don't ever want to commit
+build
 bin
 obj
 ipch

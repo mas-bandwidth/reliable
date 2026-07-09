@@ -1,39 +1,56 @@
 How to build reliable
 =====================
 
-## Building on Windows
-
-Download [premake 5](https://premake.github.io/download.html) and copy the **premake5** executable somewhere in your path.
-
-You need Visual Studio to build the source code. If you don't have Visual Studio 2019 you can [download the community edition for free](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Community&rel=16).
-
-Once you have Visual Studio installed, go to the command line under the reliable directory and type:
-
-    premake5 vs2019
-
-Open the generated reliable.sln file.
-
-Now you can build the library and run individual test programs as you would for any other Visual Studio solution.
+reliable builds with [CMake](https://cmake.org) (3.15 or later) on Windows, MacOS and Linux.
 
 ## Building on MacOS and Linux
 
-First, download and install [premake 5](https://premake.github.io/download.html).
+Go to the command line under the reliable directory and enter:
 
-Now go to the command line under the reliable directory and enter:
+    cmake -B build -DCMAKE_BUILD_TYPE=Debug
+    cmake --build build
 
-    premake5 gmake
+Use `-DCMAKE_BUILD_TYPE=Release` for an optimized build.
 
-Which creates makefiles which you can use to build the source via:
+Run the tests:
 
-    make all
+    ctest --test-dir build --output-on-failure
 
-Then you can run binaries like this:
+Or run binaries directly:
 
-    ./bin/test
-    ./bin/example
-    ./bin/stats
-    ./bin/soak
-    ./bin/fuzz
+    ./build/bin/test
+    ./build/bin/example
+    ./build/bin/stats
+    ./build/bin/soak
+    ./build/bin/fuzz
+
+To build with AddressSanitizer and UndefinedBehaviorSanitizer (recommended when fuzzing):
+
+    cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELIABLE_SANITIZE=ON
+
+## Building on Windows
+
+You need Visual Studio with the C++ workload installed (CMake is included, or install it separately).
+
+Go to the command line under the reliable directory and enter:
+
+    cmake -B build -A x64
+    cmake --build build --config Debug
+
+Use `--config Release` for an optimized build.
+
+Run the tests:
+
+    ctest --test-dir build -C Debug --output-on-failure
+
+Binaries are under `build\bin\Debug` and `build\bin\Release`. You can also open the
+generated `build\reliable.sln` in Visual Studio and build/debug from there.
+
+## Continuous integration
+
+Every push and pull request builds debug and release and runs the test suite plus a
+bounded fuzz run on Windows (x64), MacOS (Apple Silicon) and Linux (Ubuntu LTS), plus
+an ASan/UBSan pass on Linux. See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 If you have questions please create an issue at https://github.com/mas-bandwidth/reliable and I'll do my best to help you out.
 
