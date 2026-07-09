@@ -1299,7 +1299,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_sequence_buffer_advance( endpoint->received_packets, sequence );
 
-            int packet_buffer_size = RELIABLE_MAX_PACKET_HEADER_BYTES + num_fragments * endpoint->config.fragment_size;
+            size_t packet_buffer_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES + (size_t) num_fragments * (size_t) endpoint->config.fragment_size;
 
             reassembly_data->sequence = sequence;
             reassembly_data->ack = 0;
