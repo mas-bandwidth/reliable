@@ -1268,7 +1268,14 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
-        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) 
+        if ( reliable_sequence_buffer_exists( endpoint->received_packets, sequence ) )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring fragment %d of packet %d. packet already received\n",
+                endpoint->config.name, fragment_id, sequence );
+            return;
+        }
+
+        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*)
             reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
 
         if ( !reassembly_data )
@@ -2282,6 +2289,17 @@ static void test_duplicate_packets()
 
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 2 * TEST_DUPLICATE_PACKETS_NUM_ITERATIONS );
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE] == TEST_DUPLICATE_PACKETS_NUM_ITERATIONS );
+
+    // duplicate fragments arriving after their packet was delivered must not restart reassembly
+
+    uint16_t fragmented_sequence = reliable_endpoint_next_packet_sequence( context.sender );
+
+    uint8_t large_packet[2048];
+    memset( large_packet, 0, sizeof( large_packet ) );
+    reliable_endpoint_send_packet( context.sender, large_packet, sizeof( large_packet ) );
+
+    check( test_duplicate_packets_num_processed == TEST_DUPLICATE_PACKETS_NUM_ITERATIONS + 1 );
+    check( !reliable_sequence_buffer_exists( context.receiver->fragment_reassembly, fragmented_sequence ) );
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );

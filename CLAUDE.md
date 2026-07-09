@@ -93,10 +93,11 @@ None currently.
   maintainer (2026-07-09) this was an oversight, not design intent.
   `reliable_endpoint_receive_packet` now drops sequences already present in the
   received buffer and counts them in `RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE`.
-  Fragmented duplicates funnel through the same check at reassembled-packet delivery.
-  Retransmits of packets the caller rejected (process function returned 0) are still
-  processed, because only accepted packets enter the received buffer. Covered by
-  `test_duplicate_packets`.
+  Fragments for already-received sequences are dropped on arrival too, so a replayed
+  fragment set costs nothing and a duplicated final fragment cannot spawn a zombie
+  reassembly entry. Retransmits of packets the caller rejected (process function
+  returned 0) are still processed, because only accepted packets enter the received
+  buffer. Covered by `test_duplicate_packets`.
 
 ### Scope and operating assumptions (per the maintainer, 2026-07-09 — not issues)
 
@@ -117,11 +118,6 @@ None currently.
   (rtt/jitter/loss over the recent history window) are fresh under the same assumption.
 - **16-bit sequence numbers are sized for this send rate.** At game-style packet rates
   the wrap interval is ample; bulk-transfer rates are out of scope.
-- **Duplicated fragment sets re-reassemble before being dropped.** A replayed complete
-  fragment set for an already-delivered sequence is re-reassembled (one buffer
-  alloc/copy/free) and then dropped by the duplicate check at delivery — the process
-  function is never called twice. Accepted minor inefficiency; real duplication rarely
-  delivers a whole fragment set.
 
 ### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 
