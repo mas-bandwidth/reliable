@@ -138,6 +138,12 @@ None currently.
   `test_ack_buffer_overflow` (drop + recovery-after-clear semantics),
   `test_endpoint_reset` (state cleared, works after reset, in-progress reassembly
   freed without double-free, via tracking allocator).
+- **OSS-Fuzz kit added** — `fuzz_target.c` is a libFuzzer harness (fuzz input = a
+  script of send/inject operations against a live endpoint pair, exact-size heap
+  copies for redzone checking); `oss-fuzz/` holds the project.yaml/Dockerfile/build.sh
+  ready to submit to google/oss-fuzz (see oss-fuzz/README.md — submission requires
+  the maintainer to open the PR). A standalone driver build of the same harness runs
+  as the `fuzz_target` ctest so it cannot bitrot.
 
 ### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 

@@ -1,0 +1,11 @@
+homepage: "https://github.com/mas-bandwidth/reliable"
+main_repo: "https://github.com/mas-bandwidth/reliable"
+language: c
+primary_contact: "glenn@mas-bandwidth.com"
+fuzzing_engines:
+  - libfuzzer
+  - afl
+  - honggfuzz
+sanitizers:
+  - address
+  - undefined

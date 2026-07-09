@@ -53,8 +53,16 @@ foreach(program example soak stats fuzz)
     target_link_libraries(${program} PRIVATE reliable)
 endforeach()
 
+# the libFuzzer harness, built with a standalone driver so it stays healthy in CI.
+# OSS-Fuzz builds the real libFuzzer binary from fuzz_target.c via oss-fuzz/build.sh
+
+add_executable(fuzz_target_standalone fuzz_target.c)
+target_compile_definitions(fuzz_target_standalone PRIVATE RELIABLE_FUZZ_STANDALONE)
+target_link_libraries(fuzz_target_standalone PRIVATE reliable)
+
 enable_testing()
 
 add_test(NAME test COMMAND reliable_test)
 add_test(NAME fuzz COMMAND fuzz 20000 12345)
 add_test(NAME soak COMMAND soak 8192 --quiet)
+add_test(NAME fuzz_target COMMAND fuzz_target_standalone 500 12345)
