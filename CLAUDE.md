@@ -121,8 +121,30 @@ None currently.
 - **16-bit sequence numbers are sized for this send rate.** At game-style packet rates
   the wrap interval is ample; bulk-transfer rates are out of scope.
 
+### Improvements (2026-07-09, v1.3.0)
+
+- **The send path no longer allocates.** Each endpoint owns one persistent transmit
+  scratch buffer (allocated at create, sized for the larger of a regular packet or a
+  fragment), replacing the per-send allocate/free pair. Costs ~max_packet_size bytes
+  per endpoint. New caller contract: **the transmit packet callback must not send
+  packets on the same endpoint** (it would clobber the scratch buffer mid-send) —
+  documented in the header. Sending on a *different* endpoint (e.g. loopback tests)
+  remains fine.
+- **The public API is documented in reliable.h** — every function and config field.
+- **Version defines added** (`RELIABLE_VERSION_*`, 1.3.0), continuing the existing
+  v1.2.7 tag lineage. Minor bump because behavior changed: duplicates dropped, counter
+  count now 11.
+- **New tests**: `test_stale_packets` (replay outside window rejected),
+  `test_ack_buffer_overflow` (drop + recovery-after-clear semantics),
+  `test_endpoint_reset` (state cleared, works after reset, in-progress reassembly
+  freed without double-free, via tracking allocator).
+
 ### Design notes (intentional; documented in the README "Caveats" section since 2026-07)
 
+- **The transmit packet callback must not send packets on the same endpoint** — it is
+  called synchronously while the endpoint's transmit scratch buffer is in use (since
+  v1.3.0). Sending from the process packet callback is fine (that endpoint is not
+  mid-send), as is sending on other endpoints.
 - **Acks are dropped once the ack buffer fills** — the caller must call
   `reliable_endpoint_clear_acks` regularly. Since 2026-07 a drop logs at error level
   instead of being silent; the unacked packet can still be reported on a later packet's
