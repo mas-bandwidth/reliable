@@ -25,6 +25,10 @@ Tests live at the bottom of `reliable.c` behind `RELIABLE_ENABLE_TESTS`, driven 
 `test.cpp`. Debug/release is selected by `RELIABLE_DEBUG` / `RELIABLE_RELEASE`; asserts
 compile out entirely in release.
 
+**Status (2026-07-09):** premake was replaced by CMake and CI was added in July 2026
+(commits `a579740`..`9152439`). CI is green across the full matrix, there are no open
+issues, and the working tree matches main.
+
 ## Honest assessment
 
 ### Overall
@@ -40,7 +44,9 @@ real send→fragment→corrupt→reassemble path rather than just throwing rando
 `receive`. I compiled with `-Wall -Wextra` (clean), ran the full test suite (passes),
 and ran 20k fuzz iterations under ASan+UBSan (clean).
 
-That said, it is not flawless. Specific findings below, roughly in order of importance.
+The findings from that 2026-07 review are recorded below; everything actionable was
+fixed at the time (see "Found and fixed"). What remains is the design contract and the
+gotchas — read those before changing anything.
 
 ### Design contract: release builds trust the caller (do not "fix" this)
 
