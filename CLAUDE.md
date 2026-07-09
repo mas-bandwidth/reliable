@@ -49,10 +49,9 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
    CMake and `.github/workflows/ci.yml` runs Debug+Release build + test suite + bounded
    fuzz on Windows x64 / macOS arm64 / Ubuntu, plus an ASan+UBSan job on Ubuntu.
 
-2. **Copy-paste bug in a test** — `test_acks_packet_loss` fetches the *sender's* acks
-   twice; the receiver's acks are never checked (reliable.c:2155 uses `context.sender`
-   where it should be `context.receiver`). The test still passes, but half of it is
-   testing the same thing twice.
+2. **Copy-paste bug in a test** — ~~`test_acks_packet_loss` fetches the *sender's* acks
+   twice; the receiver's acks are never checked.~~ **Fixed 2026-07** (reliable.c:2155
+   now checks `context.receiver`).
 
 3. **Allocation failure is not handled.** Allocator results are either asserted
    (compiled out in release) or not checked at all: `reliable_sequence_buffer_create`
@@ -70,9 +69,8 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
    or memory-unsafely in release. A few real runtime checks in
    `reliable_endpoint_create` would be cheap.
 
-5. **README sample code has bugs**: the ack loop indexes `acks[j]` with loop variable
-   `i` (README.md:83-87), and the stats `printf` is missing its opening quote
-   (README.md:112). Trivial, but it's the first code a new user copies.
+5. **README sample code has bugs**: ~~the ack loop indexes `acks[j]` with loop variable
+   `i`, and the stats `printf` is missing its opening quote.~~ **Fixed 2026-07.**
 
 ### Design gotchas (intentional, but undocumented — callers must know)
 
@@ -113,7 +111,7 @@ That said, it is not flawless. Specific findings below, roughly in order of impo
 ### Bottom line
 
 A tight, battle-tested library that does one thing well, with real fuzzing and a recent
-security pass behind it. The code earns its "production ready" claim. Remaining items:
-fix the receiver-acks test bug and README samples, and decide deliberately whether
-release builds should validate config and allocation failures instead of trusting
-asserts that no longer exist. (CI was restored 2026-07 alongside the CMake migration.)
+security pass behind it. The code earns its "production ready" claim. The one open
+decision: whether release builds should validate config and allocation failures instead
+of trusting asserts that no longer exist (items 3 and 4 above). CI, the test bug, and
+the README samples were fixed 2026-07 alongside the CMake migration.

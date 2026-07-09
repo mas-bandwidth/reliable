@@ -1,3 +1,5 @@
+[![CI](https://github.com/mas-bandwidth/reliable/actions/workflows/ci.yml/badge.svg)](https://github.com/mas-bandwidth/reliable/actions/workflows/ci.yml)
+
 # Introduction
 
 **reliable** is a simple packet acknowledgement system for UDP-based protocols.
@@ -82,7 +84,7 @@ int num_acks;
 uint16_t * acks = reliable_endpoint_get_acks( endpoint, &num_acks );
 for ( int i = 0; i < num_acks; i++ )
 {
-    printf( "acked packet %d\n", acks[j] );
+    printf( "acked packet %d\n", acks[i] );
 }
 ```
 
@@ -109,10 +111,10 @@ reliable_endpoint_update( endpoint, time );
 You can then grab stats from the endpoint:
 
 ```c
-    printf( rtt = %.1fms | jitter = %.1fms | packet loss = %.1f%%\n", 
-        reliable_endpoint_rtt_min( endpoint ),
-        reliable_endpoint_jitter_avg_vs_min_rtt( endpoint ),
-        reliable_endpoint_packet_loss( endpoint ) ),
+printf( "rtt = %.1fms | jitter = %.1fms | packet loss = %.1f%%\n", 
+    reliable_endpoint_rtt_min( endpoint ),
+    reliable_endpoint_jitter_avg_vs_min_rtt( endpoint ),
+    reliable_endpoint_packet_loss( endpoint ) );
 ```
 
 When you are finished with an endpoint, destroy it:

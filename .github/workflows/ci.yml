@@ -16,7 +16,7 @@ jobs:
         os: [ ubuntu-24.04, macos-15, windows-2025 ]
         build_type: [ Debug, Release ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure (Windows x64)
         if: runner.os == 'Windows'
@@ -36,7 +36,7 @@ jobs:
     name: asan + ubsan (ubuntu)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELIABLE_SANITIZE=ON
