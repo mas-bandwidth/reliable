@@ -26,11 +26,19 @@
 
 # cmake generated files (in-source configure)
 CMakeFiles/
+CMakeScripts/
 CMakeCache.txt
+CMakeLists.txt.user
+CMakeUserPresets.json
 cmake_install.cmake
+install_manifest.txt
 CTestTestfile.cmake
+compile_commands.json
+Testing/
+_deps/
 Makefile
 *.a
+*.lib
 
 # Directories we don't ever want to commit
 build
