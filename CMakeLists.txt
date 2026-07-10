@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(reliable VERSION 1.3.1 LANGUAGES C CXX)
+project(reliable VERSION 1.3.3 LANGUAGES C CXX)
 
 option(RELIABLE_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
