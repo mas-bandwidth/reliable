@@ -1,0 +1,51 @@
+name: Release Check
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version-check:
+    name: version consistency
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check versions
+        run: |
+          cmake_version=$(sed -nE 's/^project\(reliable VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          header_full=$(sed -nE 's/^#define RELIABLE_VERSION_FULL[[:space:]]+"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' reliable.h)
+          major=$(sed -nE 's/^#define RELIABLE_VERSION_MAJOR[[:space:]]+([0-9]+).*/\1/p' reliable.h)
+          minor=$(sed -nE 's/^#define RELIABLE_VERSION_MINOR[[:space:]]+([0-9]+).*/\1/p' reliable.h)
+          patch=$(sed -nE 's/^#define RELIABLE_VERSION_PATCH[[:space:]]+([0-9]+).*/\1/p' reliable.h)
+          if [ -z "$cmake_version" ] || [ -z "$header_full" ] || [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
+            echo "::error::Could not extract versions (CMakeLists.txt: '$cmake_version', RELIABLE_VERSION_FULL: '$header_full', MAJOR/MINOR/PATCH: '$major.$minor.$patch')"
+            exit 1
+          fi
+          echo "CMakeLists.txt project version:   $cmake_version"
+          echo "reliable.h RELIABLE_VERSION_FULL: $header_full"
+          echo "reliable.h MAJOR.MINOR.PATCH:     $major.$minor.$patch"
+          if [ "$header_full" != "$major.$minor.$patch" ]; then
+            echo "::error::RELIABLE_VERSION_FULL ($header_full) does not match RELIABLE_VERSION_MAJOR/MINOR/PATCH ($major.$minor.$patch) in reliable.h"
+            exit 1
+          fi
+          if [ "$cmake_version" != "$header_full" ]; then
+            echo "::error::project(reliable VERSION $cmake_version) in CMakeLists.txt does not match RELIABLE_VERSION_FULL ($header_full) in reliable.h"
+            exit 1
+          fi
+          case "$GITHUB_REF" in
+            refs/tags/*)
+              tag_version="${GITHUB_REF_NAME#v}"
+              echo "Release tag version:              $tag_version"
+              if [ "$tag_version" != "$cmake_version" ]; then
+                echo "::error::Tag $GITHUB_REF_NAME does not match version $cmake_version in CMakeLists.txt and reliable.h — bump both as part of the release."
+                exit 1
+              fi
+              ;;
+          esac
