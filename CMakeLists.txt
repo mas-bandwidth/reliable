@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(reliable VERSION 1.3.4 LANGUAGES C CXX)
+project(reliable VERSION 1.3.5 LANGUAGES C CXX)
 
 # is this the top level project, or pulled in via add_subdirectory / FetchContent?
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
