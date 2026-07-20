@@ -2723,7 +2723,7 @@ void test_sequence_buffer_rollover()
     context.sender = reliable_endpoint_create( &sender_config, time );
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
-    uint8_t packet_data[TEST_MAX_PACKET_BYTES] = {};
+    uint8_t packet_data[TEST_MAX_PACKET_BYTES] = {0};
 
     int num_packets_sent = 0;
     int i;
