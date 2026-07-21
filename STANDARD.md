@@ -32,8 +32,11 @@ difference is computed as `sequence - ack`, and if negative, `65536` is added.
 
 ## Packet Header
 
-The header is **variable length**, between 3 and 9 bytes. Its size depends on
-how much of the acknowledgement state can be elided. It carries three values:
+The header is **variable length, 4 to 9 bytes** — never fewer than 4, because
+the prefix byte, the 16-bit sequence and at least a one-byte ack are always
+present. The upper bound of 9 is the library's
+`RELIABLE_MAX_PACKET_HEADER_BYTES`. Its size within that range depends on how
+much of the acknowledgement state can be elided. It carries three values:
 
 * `sequence` — the sequence number of this packet
 * `ack` — the most recent sequence number received from the far end
@@ -94,6 +97,9 @@ A packet larger than the configured `fragment_above` threshold is split into
 fragments of `fragment_size` bytes each, up to `max_fragments` (256 maximum).
 
 ### Fragment header
+
+Always exactly 5 bytes (`RELIABLE_FRAGMENT_HEADER_BYTES`), followed on
+fragment 0 by the embedded packet header:
 
     [prefix byte]       (uint8)     always exactly 1
     [sequence]          (uint16)    the sequence of the whole packet

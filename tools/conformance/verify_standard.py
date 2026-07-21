@@ -82,6 +82,8 @@ def main():
             c.eq(f"header seq={seq} ack={ack} bits={bits:#010x}: ack", da, ack)
             c.eq(f"header seq={seq} ack={ack} bits={bits:#010x}: ack_bits", dab, bits)
             c.eq(f"header seq={seq} ack={ack} bits={bits:#010x}: consumed all bytes", dn, len(raw))
+            c.eq(f"header seq={seq} ack={ack} bits={bits:#010x}: length within 4..9",
+                 4 <= len(raw) <= 9, True)
         elif f[0] == "FRAG":
             frags.append(bytes.fromhex(f[2]))
         elif f[0] == "FRAGINFO":
@@ -94,6 +96,7 @@ def main():
 
     for idx, raw in enumerate(frags):
         seq, fid, nfrags, consumed = decode_fragment_header(raw)
+        c.eq(f"fragment {idx}: fragment header is exactly 5 bytes", consumed, 5)
         c.eq(f"fragment {idx}: prefix byte is 1", raw[0], 1)
         c.eq(f"fragment {idx}: fragment id", fid, idx)
         c.eq(f"fragment {idx}: num_fragments (stored minus one)", nfrags, expected_frags)
