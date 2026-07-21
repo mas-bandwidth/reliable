@@ -413,14 +413,6 @@ void reliable_write_uint64( uint8_t ** p, uint64_t value )
     *p += 8;
 }
 
-void reliable_write_bytes( uint8_t ** p, uint8_t * byte_array, int num_bytes )
-{
-    int i;
-    for ( i = 0; i < num_bytes; ++i )
-    {
-        reliable_write_uint8( p, byte_array[i] );
-    }
-}
 
 uint8_t reliable_read_uint8( uint8_t ** p )
 {
@@ -464,14 +456,6 @@ uint64_t reliable_read_uint64( uint8_t ** p )
     return value;
 }
 
-void reliable_read_bytes( uint8_t ** p, uint8_t * byte_array, int num_bytes )
-{
-    int i;
-    for ( i = 0; i < num_bytes; ++i )
-    {
-        byte_array[i] = reliable_read_uint8( p );
-    }
-}
 
 // ---------------------------------------------------------------
 
