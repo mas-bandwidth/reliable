@@ -2976,6 +2976,61 @@ static void test_endpoint_reset()
     }
 }
 
+static void test_rtt()
+{
+    double time = 100.0;
+    double delta_time = 0.01;
+
+    struct test_context_t context;
+    test_default_context(&context);
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config(&sender_config);
+    reliable_default_config(&receiver_config);
+
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create(&sender_config, time);
+    context.receiver = reliable_endpoint_create(&receiver_config, time);
+
+    int i;
+    for (i = 0; i < 1000; ++i)
+    {
+        uint8_t dummy_packet[8];
+        memset(dummy_packet, 0, sizeof(dummy_packet));
+
+        reliable_endpoint_send_packet(context.sender, dummy_packet, sizeof(dummy_packet));
+        reliable_endpoint_send_packet(context.receiver, dummy_packet, sizeof(dummy_packet));
+
+        reliable_endpoint_update(context.sender, time);
+        reliable_endpoint_update(context.receiver, time);
+
+        time += delta_time;
+    }
+
+    float rtt = reliable_endpoint_rtt(context.sender);
+    float rtt_min = reliable_endpoint_rtt_min(context.sender);
+    float rtt_max = reliable_endpoint_rtt_max(context.sender);
+    float rtt_avg = reliable_endpoint_rtt_avg(context.sender);
+
+    check(rtt == rtt && rtt >= 0); // Check rtt is finite and non-negative
+    check(rtt_min >= 0 && rtt_min <= rtt_avg && rtt_avg <= rtt_max);
+    check(rtt_max < 1000.0); // Assume RTT is in milliseconds
+
+    reliable_endpoint_destroy(context.sender);
+    reliable_endpoint_destroy(context.receiver);
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -3001,6 +3056,7 @@ void reliable_test()
         RUN_TEST( test_large_packets );
         RUN_TEST( test_sequence_buffer_rollover );
         RUN_TEST( test_fragment_cleanup );
+        RUN_TEST( test_rtt );
         RUN_TEST( test_endpoint_reset );
     }
 }
