@@ -17,7 +17,7 @@ def build_and_run(cc):
     src = os.path.join(ROOT, "tools", "conformance", "gen_vectors.c")
     with tempfile.TemporaryDirectory() as tmp:
         exe = os.path.join(tmp, "gen")
-        r = subprocess.run([cc, "-I" + ROOT, "-o", exe, src, os.path.join(ROOT, "reliable.c")],
+        r = subprocess.run([cc, "-I" + ROOT, "-o", exe, src, os.path.join(ROOT, "reliable.c"), "-lm"],
                            capture_output=True, text=True)
         if r.returncode != 0:
             print("build failed:\n" + r.stderr[:2000], file=sys.stderr); sys.exit(2)
