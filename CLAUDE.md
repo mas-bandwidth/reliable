@@ -23,6 +23,36 @@ DECISIONS THAT READ AS BUGS (they are not — do not "fix" them)
   bidirectional exchange at ~60Hz; acks piggyback on outgoing packets. One-directional or
   bursty request/response traffic is out of scope, and the rtt/jitter/loss stats are fresh
   only under that same assumption.
+
+THE WRITE/READ RULE — read this BEFORE reporting any assert as a missing bounds check
+Glenn, 2026-07-26: "intention is on write, user is responsible to not crash or do undefined
+behavior. asserts are there to help. callers responsibility. on read, obviously, we must
+check." Plus Postel: "be conservative in what you send, permissive in what you receive."
+  WRITE / caller-supplied -> the CALLER validates. Assert-only is the DESIGN; -DNDEBUG
+    removing it is correct. Do NOT add runtime checks here.
+  READ / off the wire     -> the library checks at runtime, for safety.
+DELIBERATELY ASSERT-ONLY, do NOT "fix" -- a future audit that finds these has found the
+contract, not a bug:
+  - reliable_copy_string( dest, source, 0 ) (reliable.c:1729). dest_size is size_t, so
+    `i < dest_size - 1` wraps to SIZE_MAX and writes until it finds a NUL. I proved this
+    under ASan (heap-buffer-overflow WRITE at reliable.c:1739). It is still caller
+    responsibility.
+  - reliable_endpoint_send_packet( ep, data, negative ) (reliable.c:762). The
+    > max_packet_size test at :768 is false for negatives, so it reaches the memcpy at
+    :802 and the int becomes a huge size_t. Proved under ASan (negative-size-param).
+    Note netcode's equivalent DOES range-check; that difference is not a defect here.
+  - the config asserts in reliable_endpoint_create (reliable.c:561-572), including
+    max_fragments <= 256 with no runtime companion.
+THE RECEIVE PATH IS CLEAN AND UNUSUALLY WELL HARDENED -- two independent audits (Opus 5 and
+Fable 5) agree. read_fragment_header checks minimum length (:963), num_fragments >
+max_fragments (:982), fragment_id >= num_fragments (:988), fragment_bytes (:1038, :1044);
+reliable_store_fragment_data has an explicit pre-memcpy bounds test at :1089 with a comment
+naming the attacker case.
+WHY fragment_received[256] (reliable.c:472) CANNOT be overrun even though max_fragments is
+assert-only: fragment_id is read as a uint8_t at :979, so it is <= 255 by the WIRE TYPE
+regardless of any check or config value. Verified empirically, not just by reading -- a
+hostile-input harness under ASan+UBSan with -DNDEBUG hit that indexing site 24,384 times at
+a highest index of exactly 255.
 <!-- HOT:END -->
 
 # CLAUDE.md
