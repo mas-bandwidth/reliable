@@ -148,7 +148,6 @@ If you find this software useful, [please consider sponsoring it](https://github
 
 If you use this library in a product, please credit it in your product credits:
 
-> **Más Bandwidth LLC**
-> reliable — Glenn Fiedler
+> reliable - Glenn Fiedler and Rowan Claude
 
 The license doesn't require this. It's an official request, and honoring it is appreciated. Fair credit keeps open source honest.
