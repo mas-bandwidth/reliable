@@ -75,6 +75,14 @@ set_target_properties(reliable PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
     WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+# reliable.c calls pow() for the jitter stddev, which needs libm where it is a separate
+# library (Linux glibc; on mac and Windows the math functions live in the base runtime).
+# PUBLIC so every executable linking the static library gets it on its link line.
+find_library(RELIABLE_MATH_LIBRARY m)
+if(RELIABLE_MATH_LIBRARY)
+    target_link_libraries(reliable PUBLIC ${RELIABLE_MATH_LIBRARY})
+endif()
+
 if(RELIABLE_BUILD_TESTS)
 
     # "test" is a reserved target name in cmake, so the target is reliable_test
