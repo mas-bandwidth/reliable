@@ -27,10 +27,22 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# strict floating point. Estate policy for mas-bandwidth network libraries: "generally
+# speaking, network libraries we work on require -ffp-contract=off" (Glenn, 2026-08-24).
+#   - GCC/Clang: -ffp-contract=off. Not merely "no -ffast-math" -- GCC's default is
+#     -ffp-contract=fast, which contracts across statements, and clang's default =on still
+#     fuses within a single expression.
+#   - MSVC: /fp:precise, which since VS 2022 does not imply contraction.
+# reliable's wire format carries no floating point -- the floats here are the RTT, jitter,
+# packet loss and bandwidth stats -- so this is the family floor rather than a wire fix:
+# contraction is architecture-dependent (FMA is in the aarch64 baseline and absent from
+# the x86-64 one), so any float arithmetic that ever nears the wire diverges bit-wise
+# between architectures without it. CI builds through this file, so every CI leg builds
+# with these flags.
 if(MSVC)
-    add_compile_options(/W4 /fp:fast)
+    add_compile_options(/W4 /fp:precise)
 else()
-    add_compile_options(-Wall -Wextra -ffast-math)
+    add_compile_options(-Wall -Wextra -ffp-contract=off)
 endif()
 
 if(RELIABLE_SANITIZE)
@@ -62,6 +74,14 @@ set_target_properties(reliable PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
     WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+# reliable.c calls pow() for the jitter stddev, which needs libm where it is a separate
+# library (Linux glibc; on mac and Windows the math functions live in the base runtime).
+# PUBLIC so every executable linking the static library gets it on its link line.
+find_library(RELIABLE_MATH_LIBRARY m)
+if(RELIABLE_MATH_LIBRARY)
+    target_link_libraries(reliable PUBLIC ${RELIABLE_MATH_LIBRARY})
+endif()
 
 if(RELIABLE_BUILD_TESTS)
 

@@ -28,6 +28,23 @@ To build with AddressSanitizer and UndefinedBehaviorSanitizer (recommended when 
 
     cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELIABLE_SANITIZE=ON
 
+## Floating point: reliable builds with -ffp-contract=off
+
+Estate policy for mas-bandwidth network libraries: builds are strict about floating point
+contraction. This build sets the right flag on every target, so nothing is required of you to
+build reliable itself:
+
+  - GCC/Clang: `-ffp-contract=off`. Not merely the absence of `-ffast-math` — GCC's default
+    is `-ffp-contract=fast`, which contracts across statement boundaries, and clang's default
+    `=on` still fuses within a single expression.
+  - MSVC: `/fp:precise`.
+
+reliable's wire format carries no floating point, so no flag is required of consumers for
+correct wire bytes today. The strict build is the family floor: contraction is
+architecture-dependent (FMA is in the aarch64 baseline and absent from the x86-64 one), so
+float arithmetic near a wire diverges bit-wise between architectures without it. If you
+compile `reliable.c` into your own build rather than linking the library, carry the same flag.
+
 ## Building on Windows
 
 You need Visual Studio with the C++ workload installed (CMake is included, or install it separately).
