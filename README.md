@@ -2,6 +2,8 @@
 
 # Introduction
 
+If this library helps you, please support it: **[Become a supporter](https://www.patreon.com/MasBandwidth/membership)**
+
 **reliable** is a simple packet acknowledgement system for UDP-based protocols.
 
 It's useful in situations where you need to know which UDP packets you sent were received by the other side.
@@ -138,7 +140,7 @@ The author of this library is [Glenn Fiedler](https://www.linkedin.com/in/glenn-
 
 Open source libraries by the same author include: [netcode](https://github.com/mas-bandwidth/netcode), [serialize](https://github.com/mas-bandwidth/serialize),  and [yojimbo](https://github.com/mas-bandwidth/yojimbo)
 
-If you find this software useful, [please consider sponsoring it](https://github.com/sponsors/mas-bandwidth). Thanks!
+If you find this software useful, please consider [becoming a supporter](https://www.patreon.com/MasBandwidth/membership). Thanks!
 
 # License
 
