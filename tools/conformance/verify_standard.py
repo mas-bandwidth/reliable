@@ -66,12 +66,44 @@ def decode_fragment_header(b):
     return seq, frag_id, num_frags, i
 
 
+ACK_WINDOW = 32
+
+
+def represented_sequences(ack, ack_bits):
+    """STANDARD.md, 'What ack and ack_bits mean': bit n represents (ack - n) mod 65536."""
+    return {(ack - n) % 65536 for n in range(ACK_WINDOW) if ack_bits & (1 << n)}
+
+
+def check_ack_vector(c, name, received, raw, acked):
+    """A stateful vector: `received` reached the far endpoint, `raw` is the packet it
+    then sent, `acked` is what the near endpoint reported after consuming `raw`."""
+    seq, ack, ack_bits, _ = decode_packet_header(raw)
+    tag = f"ack vector {name}"
+
+    # generation
+    c.eq(f"{tag}: ack is the most recent received sequence", ack, received[-1])
+    in_window = {s for s in received if (ack - s) % 65536 < ACK_WINDOW}
+    outside = set(received) - in_window
+    got = represented_sequences(ack, ack_bits)
+    c.eq(f"{tag}: ack_bits represents exactly the received sequences within the window",
+         sorted(got), sorted(in_window))
+    c.eq(f"{tag}: sequences older than the window are not represented",
+         sorted(got & outside), [])
+    c.eq(f"{tag}: bit 0 is ack itself and is set", bool(ack_bits & 1), True)
+
+    # consumption
+    c.eq(f"{tag}: the far end acknowledges exactly the represented sequences",
+         sorted(set(acked)), sorted(in_window))
+    c.eq(f"{tag}: no sequence acknowledged twice", len(acked), len(set(acked)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cc", default=os.environ.get("CC", "cc"))
     a = ap.parse_args()
     c = Checker()
     frags = []; fraginfo = None
+    ack_name = None; ack_received = None; ack_raw = None
 
     for line in build_and_run(a.cc).splitlines():
         f = line.split()
@@ -88,6 +120,14 @@ def main():
             frags.append(bytes.fromhex(f[2]))
         elif f[0] == "FRAGINFO":
             fraginfo = (int(f[1]), int(f[2]))
+        elif f[0] == "ACKCASE":
+            ack_name = f[1]
+        elif f[0] == "ACKRECV":
+            ack_received = [int(x) for x in f[1:]]
+        elif f[0] == "ACKHDR":
+            ack_raw = bytes.fromhex(f[1])
+        elif f[0] == "ACKED":
+            check_ack_vector(c, ack_name, ack_received, ack_raw, [int(x) for x in f[1:]])
 
     # ---- fragments
     payload_bytes, fragment_size = fraginfo

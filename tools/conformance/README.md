@@ -24,9 +24,17 @@ wrong — decide which, and fix that one.
   of exactly 1, fragment ids, `num_fragments` stored minus one, the shared
   sequence, that **only fragment 0 carries the embedded packet header**, and
   that data sizes are `fragment_size` except for the remainder in the last.
+* **acknowledgment vectors**, stateful rather than a bitfield round trip. A
+  known set of sequences is delivered to a live endpoint, the header that
+  endpoint then generates is decoded per STANDARD.md, and the sequences bit `n`
+  claims are checked against the set that was actually delivered. The far end
+  then consumes that header and its reported acks are checked against the same
+  set. Two cases: one straddling the 32-wide window edge so older sequences must
+  drop out, and one whose delivered set crosses 65535 to 0 so `ack - n` must
+  wrap.
 
 ## What is NOT covered
 
-Endpoint behaviour above the wire: ack logic, reassembly state, RTT and
-counters. Those are the library's semantics rather than its format, and
-`test.cpp` is where they belong.
+Endpoint behavior above the wire that the format does not fix: reassembly
+state, RTT and counters. Those are the library's semantics rather than its
+format, and `test.cpp` is where they belong.
