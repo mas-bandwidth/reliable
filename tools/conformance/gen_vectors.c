@@ -10,9 +10,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "reliable.h"
 
-int reliable_write_packet_header( uint8_t *, uint16_t, uint16_t, uint32_t );
+/* the header writer is internal to the library, so this translation unit is the library:
+   reliable.c is included rather than linked, which is also how the embedded test suite
+   reaches the same functions */
+#include "reliable.c"
 
 static void hex( uint8_t * b, int n ) { for ( int i = 0; i < n; i++ ) printf( "%02x", b[i] ); }
 
@@ -145,7 +147,7 @@ int main( void )
     config.fragment_above = 500;
     config.fragment_size = 500;
     config.max_fragments = 16;
-    config.max_packet_size = 8 * 1024;
+    config.max_packet_size = 16 * 500;
     config.transmit_packet_function = on_transmit;
     config.process_packet_function = on_process;
     struct reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, 0.0 );

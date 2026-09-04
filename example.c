@@ -138,7 +138,7 @@ int main( int argc, char ** argv )
         printf( "%d: client sent packet %d\n", i, client_packet_sequence );
 
         int num_acks;
-        uint16_t * acks = reliable_endpoint_get_acks( client.endpoint, &num_acks );
+        const uint16_t * acks = reliable_endpoint_get_acks( client.endpoint, &num_acks );
         for ( int j = 0; j < num_acks; j++ )
         {
             printf( " --> server acked packet %d\n", acks[j] );
