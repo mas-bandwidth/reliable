@@ -47,6 +47,10 @@ if ( endpoint == NULL )
 }
 ```
 
+`reliable_endpoint_create` returns NULL, in debug and release alike, if the config is not
+valid or if an allocation fails, and it frees everything it took before it does. Check the
+result.
+
 For example, in a client/server setup you would have one endpoint on each client, and n endpoints on the server, one for each client slot.
 
 Next, create a function to transmit packets:
@@ -84,7 +88,7 @@ And get acks like this:
 
 ```c
 int num_acks;
-uint16_t * acks = reliable_endpoint_get_acks( endpoint, &num_acks );
+const uint16_t * acks = reliable_endpoint_get_acks( endpoint, &num_acks );
 for ( int i = 0; i < num_acks; i++ )
 {
     printf( "acked packet %d\n", acks[i] );
@@ -133,6 +137,10 @@ reliable is a packet acknowledgement system, not a full messaging layer. Keep th
 1. Acks accumulate until you call `reliable_endpoint_clear_acks`, so make sure you clear acks once you have processed them each frame. If the ack buffer fills up, additional acks are dropped and an error is logged.
 
 2. Endpoints are not thread safe. Use one endpoint per-thread, or protect each endpoint with your own lock. The log level, printf and assert handlers are global to the process.
+
+3. Every pointer a callback receives is valid only for the duration of the call, and the ack array `reliable_endpoint_get_acks` returns is a read only view that the next receive, clear, reset or destroy invalidates. Copy what you need to keep. `reliable.h` states the lifetime of each one.
+
+4. The transmit packet callback must not send on the same endpoint it was called from. It runs while that endpoint's transmit buffer is in use. Sending on a different endpoint is fine, as is sending from the process packet callback.
 
 # Author
 

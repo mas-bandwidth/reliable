@@ -5,12 +5,17 @@ WHAT: the C reference for reliable — packet fragmentation, reassembly and acks
 unreliable transport. NOT reliable.rs / reliable.go (the ports).
 
 DECISIONS THAT READ AS BUGS (they are not — do not "fix" them)
-- **Release builds trust the caller. This is the design contract**, confirmed with the
-  maintainer 2026-07: correct configuration is the programmer's responsibility in release.
-  Debug asserts catch bad config during development; release deliberately carries no
-  validation overhead. Do NOT add release-mode config checks or defensive branches — that
-  includes the tempting ones like `max_fragments > 256` (which would overflow
-  `fragment_received[256]`). Adding them is fighting the library, not hardening it.
+- **Release builds trust the caller on the hot paths. This is the design contract.**
+  Correct arguments to send, receive and copy are the programmer's responsibility in
+  release; debug asserts catch mistakes during development and release carries no
+  per-packet validation overhead. Do NOT add release-mode checks to those paths.
+- **Endpoint creation is the exception and is fallible in every build.**
+  `reliable_endpoint_create` validates the whole config, checks the size arithmetic, checks
+  every allocation, frees whatever it took, and returns NULL. Creation happens once, off the
+  hot path, and the header and README both promise a NULL check, so the promise is kept
+  rather than left to an assert release compiles out. `reliable_endpoint_destroy` checks
+  each member rather than asserting it, because create hands it a partly built endpoint to
+  unwind. Do not turn any of this back into asserts.
 - **No authentication, no anti-spoofing, and that is out of scope.** reliable assumes an
   authenticated encrypted transport beneath it — that is netcode's job. Forged packets,
   window-warping via a fake far-future sequence, spoofed acks: all netcode's to prevent.
@@ -41,8 +46,6 @@ contract, not a bug:
     > max_packet_size test at :768 is false for negatives, so it reaches the memcpy at
     :802 and the int becomes a huge size_t. Proved under ASan (negative-size-param).
     Note netcode's equivalent DOES range-check; that difference is not a defect here.
-  - the config asserts in reliable_endpoint_create (reliable.c:561-572), including
-    max_fragments <= 256 with no runtime companion.
 THE RECEIVE PATH IS CLEAN AND UNUSUALLY WELL HARDENED -- two independent audits (Opus 5 and
 Fable 5) agree. read_fragment_header checks minimum length (:963), num_fragments >
 max_fragments (:982), fragment_id >= num_fragments (:988), fragment_bytes (:1038, :1044);
@@ -107,17 +110,21 @@ The findings from that 2026-07 review are recorded below; everything actionable 
 fixed at the time (see "Found and fixed"). What remains is the design contract and the
 gotchas — read those before changing anything.
 
-### Design contract: release builds trust the caller (do not "fix" this)
+### Design contract: release builds trust the caller on the hot paths (do not "fix" this)
 
-Per the maintainer (2026-07): **correct configuration is the programmer's responsibility
-in release.** Debug asserts exist to help the programmer catch bad configuration during
-development; release builds deliberately carry no validation overhead. Do not add
-release-mode config checks or defensive branches — that would be fighting the library's
-design. Concretely, this covers things like `max_fragments > 256` (would overflow
-`fragment_received[256]` on the receive path) and inconsistent
-`max_packet_size > max_fragments * fragment_size`: real caller errors, caught by asserts
-in debug, the caller's problem in release. The same trust model applies to allocators —
-the caller supplies them and is responsible for them not failing.
+**Correct arguments are the programmer's responsibility in release.** Debug asserts exist
+to help the programmer catch mistakes during development; release builds deliberately
+carry no per-packet validation overhead. Do not add release-mode checks to the send,
+receive or copy paths.
+
+Endpoint creation is the one place that validates in every build. It runs once, off the
+hot path, and both the header and the README promise the caller a NULL check, so
+`reliable_endpoint_create` validates the config (every field range plus the two
+relationships, `fragment_above` against `max_packet_size` and `max_fragments *
+fragment_size` covering `max_packet_size`), checks the size arithmetic behind every
+buffer, checks every allocation result, frees what it already took and returns NULL. The
+caller supplies the allocator, and an allocator that returns NULL is a supported outcome
+rather than undefined behavior.
 
 ### Open issues
 
