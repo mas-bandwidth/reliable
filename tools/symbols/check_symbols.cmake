@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.15)
+
 # Checks that the library exports exactly the surface reliable.h declares.
 #
 # The set of names reliable.h marks RELIABLE_EXPORT is the contract. Every global symbol the

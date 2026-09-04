@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.15)
+
 # Checks the promises reliable.h makes that no compiler can check for us.
 #
 # The two array getters must hand back a const view, and the header must state the lifetime
