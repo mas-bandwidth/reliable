@@ -1184,7 +1184,10 @@ static void reliable_store_fragment_data( struct reliable_fragment_reassembly_da
 
     if ( fragment_id == reassembly_data->num_fragments_total - 1 )
     {
-        reassembly_data->packet_bytes = ( reassembly_data->num_fragments_total - 1 ) * fragment_size + fragment_bytes;
+        const int64_t packet_bytes = (int64_t) ( reassembly_data->num_fragments_total - 1 ) * fragment_size + fragment_bytes;
+        if ( packet_bytes < 0 || packet_bytes > INT_MAX )
+            return;
+        reassembly_data->packet_bytes = (int) packet_bytes;
     }
 
     size_t offset = RELIABLE_MAX_PACKET_HEADER_BYTES + fragment_id * fragment_size;
