@@ -628,6 +628,19 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
+    if ( config->packet_header_size < 0 )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet_header_size must not be negative\n", config->name );
+        return 0;
+    }
+
+    if ( (int64_t) config->packet_header_size + (int64_t) config->max_packet_size > INT_MAX )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet_header_size (%d) plus max_packet_size (%d) does not fit a packet length\n",
+                         config->name, config->packet_header_size, config->max_packet_size );
+        return 0;
+    }
+
     return 1;
 }
 
@@ -1685,7 +1698,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
     {
         uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
         int i;
-        int bytes_sent = 0;
+        int64_t bytes_sent = 0;
         double start_time = FLT_MAX;
         double finish_time = 0.0;
         int num_samples = endpoint->config.sent_packets_buffer_size / 2;
@@ -1726,7 +1739,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
     {
         uint32_t base_sequence = ( endpoint->received_packets->sequence - endpoint->config.received_packets_buffer_size + 1 ) + 0xFFFF;
         int i;
-        int bytes_sent = 0;
+        int64_t bytes_sent = 0;
         double start_time = FLT_MAX;
         double finish_time = 0.0;
         int num_samples = endpoint->config.received_packets_buffer_size / 2;
@@ -1767,7 +1780,7 @@ void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double tim
     {
         uint32_t base_sequence = ( endpoint->sent_packets->sequence - endpoint->config.sent_packets_buffer_size + 1 ) + 0xFFFF;
         int i;
-        int bytes_sent = 0;
+        int64_t bytes_sent = 0;
         double start_time = FLT_MAX;
         double finish_time = 0.0;
         int num_samples = endpoint->config.sent_packets_buffer_size / 2;
@@ -3425,6 +3438,12 @@ static void test_endpoint_create_invalid_config()
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
 
     config = valid; config.rtt_history_size = 0;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.packet_header_size = -1;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.packet_header_size = INT_MAX;
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
 
     config = valid; config.transmit_packet_function = NULL;
