@@ -1217,7 +1217,7 @@ static void reliable_store_fragment_data( struct reliable_fragment_reassembly_da
         return;
     }
     
-    memcpy( reassembly_data->packet_data + RELIABLE_MAX_PACKET_HEADER_BYTES + fragment_id * fragment_size, fragment_data, fragment_bytes );
+    memcpy( reassembly_data->packet_data + offset, fragment_data, fragment_bytes );
 }
 
 void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
