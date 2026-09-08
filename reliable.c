@@ -614,6 +614,20 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
+    if ( (int64_t) config->max_fragments * config->fragment_size > (int64_t) INT_MAX - RELIABLE_MAX_PACKET_HEADER_BYTES )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] max_fragments (%d) times fragment_size (%d) does not fit in a packet length\n",
+                         config->name, config->max_fragments, config->fragment_size );
+        return 0;
+    }
+
+    if ( config->max_packet_size > INT_MAX - RELIABLE_MAX_PACKET_HEADER_BYTES - RELIABLE_FRAGMENT_HEADER_BYTES )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] max_packet_size (%d) is too large for the receive length check\n",
+                         config->name, config->max_packet_size );
+        return 0;
+    }
+
     return 1;
 }
 
@@ -1190,10 +1204,10 @@ static void reliable_store_fragment_data( struct reliable_fragment_reassembly_da
         reassembly_data->packet_bytes = (int) packet_bytes;
     }
 
-    size_t offset = RELIABLE_MAX_PACKET_HEADER_BYTES + fragment_id * fragment_size;
-    size_t end_offset = offset + fragment_bytes;
-    size_t max_size = RELIABLE_MAX_PACKET_HEADER_BYTES +
-                      reassembly_data->num_fragments_total * fragment_size;
+    size_t offset = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES + (size_t) fragment_id * (size_t) fragment_size;
+    size_t end_offset = offset + (size_t) fragment_bytes;
+    size_t max_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES +
+                      (size_t) reassembly_data->num_fragments_total * (size_t) fragment_size;
     
     if ( fragment_bytes < 0 || end_offset > max_size )
     {
@@ -1212,7 +1226,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
     reliable_assert( packet_data );
     reliable_assert( packet_bytes > 0 );
 
-    if ( packet_bytes > endpoint->config.max_packet_size + RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES )
+    if ( (int64_t) packet_bytes > (int64_t) endpoint->config.max_packet_size + RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES )
     {
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] packet too large to receive. packet is at least %d bytes, maximum is %d\n",
             endpoint->config.name, packet_bytes - ( RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES ), endpoint->config.max_packet_size );
@@ -1392,7 +1406,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             reliable_sequence_buffer_advance( endpoint->received_packets, sequence );
 
-            size_t packet_buffer_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES + (size_t) num_fragments * (size_t) endpoint->config.fragment_size;
+            size_t packet_buffer_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES + (size_t) num_fragments * (size_t) endpoint->config.fragment_size + 8;
 
             reassembly_data->sequence = sequence;
             reassembly_data->ack = 0;
@@ -3385,6 +3399,17 @@ static void test_endpoint_create_invalid_config()
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
 
     config = valid; config.max_fragments = 257;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.max_fragments = 256; config.fragment_size = 8421505;
+    config.max_packet_size = config.fragment_size;
+    config.fragment_above = 1;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.max_packet_size = INT_MAX - 10;
+    config.fragment_above = 1;
+    config.fragment_size = config.max_packet_size;
+    config.max_fragments = 1;
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
 
     config = valid; config.ack_buffer_size = 0;
