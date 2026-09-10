@@ -14,7 +14,7 @@ endif()
 # C only. the library is C99 and nothing in it needs a C++ compiler; the test driver is the
 # one C++ translation unit in the tree, so CXX is enabled below only when tests are built.
 # a consumer that has no C++ compiler configures and builds with -DRELIABLE_BUILD_TESTS=OFF
-project(reliable VERSION 1.4.2 LANGUAGES C)
+project(reliable VERSION 1.4.3 LANGUAGES C)
 
 # is this the top level project, or pulled in via add_subdirectory / FetchContent?
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
