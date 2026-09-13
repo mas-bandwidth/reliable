@@ -1427,7 +1427,16 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->num_fragments_received = 0;
             reassembly_data->num_fragments_total = num_fragments;
             reassembly_data->packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_buffer_size );
-            reliable_assert( reassembly_data->packet_data );
+            if ( !reassembly_data->packet_data )
+            {
+                // a NULL return from the caller-supplied allocator is a documented supported outcome; honor it on
+                // the receive path (not just at create) so memory pressure fails the fragment instead of crashing.
+                reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring fragment %d of packet %d. reassembly allocation failed\n",
+                    endpoint->config.name, fragment_id, sequence );
+                reliable_sequence_buffer_remove_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
+                endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
+                return;
+            }
             reassembly_data->packet_bytes = 0;
             reassembly_data->packet_header_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
@@ -2899,11 +2908,16 @@ void test_sequence_buffer_rollover()
 struct test_tracking_allocate_context_t
 {
     void* active_allocations[1024];
+    int fail_allocations;       // when set, the allocator returns NULL (simulates memory pressure)
 };
 
 void * test_tracking_allocate_function( void * context, size_t bytes )
 {
     struct test_tracking_allocate_context_t* tracking_context = (struct test_tracking_allocate_context_t*)context;
+    if ( tracking_context->fail_allocations )
+    {
+        return NULL;
+    }
     void * allocation = malloc( bytes );
     int tracking_index;
     for ( tracking_index = 0; tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations); ++tracking_index )
@@ -3013,6 +3027,78 @@ void test_fragment_cleanup()
     // Make sure that there is no memory that hasn't been freed.
     int tracking_index;
     for ( tracking_index = 0; tracking_index < (int) ARRAY_LENGTH(tracking_alloc_context.active_allocations); ++tracking_index )
+    {
+        check( tracking_alloc_context.active_allocations[tracking_index] == NULL );
+    }
+}
+
+void test_fragment_reassembly_alloc_failure()
+{
+    // Regression: a NULL-returning allocator on the fragment reassembly receive path must fail the
+    // fragment (bump NUM_FRAGMENTS_INVALID) rather than crash the process. Before the fix, the receive
+    // path guarded the reassembly allocation with an assert only, so a release build segfaulted on a
+    // NULL+offset memcpy. reliable.h documents NULL-returning allocators as a supported outcome.
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct test_tracking_allocate_context_t tracking_alloc_context;
+    memset( &tracking_alloc_context, 0, sizeof( tracking_alloc_context ) );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    receiver_config.allocator_context = &tracking_alloc_context;
+    receiver_config.allocate_function = &test_tracking_allocate_function;
+    receiver_config.free_function = &test_tracking_free_function;
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    // create succeeded with a live allocator; now make every subsequent allocation fail, so the
+    // failing allocation is specifically the reassembly buffer on the receive path.
+    tracking_alloc_context.fail_allocations = 1;
+
+    // send a fragmented packet (larger than one fragment) from sender to receiver
+    context.allow_packets = 1;
+    {
+        uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+        int packet_bytes = sender_config.fragment_size + sender_config.fragment_size / 2;
+        uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+        generate_packet_data_with_size( sequence, packet_data, packet_bytes );
+        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+    }
+
+    reliable_endpoint_update( context.sender, time );
+    reliable_endpoint_update( context.receiver, time );   // <-- receive path hits the NULL allocation; must not crash
+
+    // the fragment must have been refused, not crashed through
+    const uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] > 0 );
+
+    // let the allocator work again so destroy can clean up, and confirm no leak
+    tracking_alloc_context.fail_allocations = 0;
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+
+    int tracking_index;
+    for ( tracking_index = 0; tracking_index < (int) ARRAY_LENGTH( tracking_alloc_context.active_allocations ); ++tracking_index )
     {
         check( tracking_alloc_context.active_allocations[tracking_index] == NULL );
     }
@@ -3986,6 +4072,7 @@ void reliable_test()
         RUN_TEST( test_large_packets );
         RUN_TEST( test_sequence_buffer_rollover );
         RUN_TEST( test_fragment_cleanup );
+        RUN_TEST( test_fragment_reassembly_alloc_failure );
         RUN_TEST( test_rtt );
         RUN_TEST( test_endpoint_reset );
         RUN_TEST( test_endpoint_reset_clears_stats );
