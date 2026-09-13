@@ -712,6 +712,11 @@ struct reliable_endpoint_t * reliable_endpoint_create( struct reliable_config_t 
     endpoint->allocate_function = allocate_function;
     endpoint->free_function = free_function;
     endpoint->config = *config;
+
+    // force a terminator on the caller's name copy: reliable_printf logs it with "%s", so a caller
+    // that fills all 256 bytes with no NUL would make that log read past the array.
+    endpoint->config.name[sizeof( endpoint->config.name ) - 1 ] = '\0';
+
     endpoint->time = time;
 
     endpoint->acks = (uint16_t*) allocate_function( allocator_context, acks_bytes );
@@ -1437,6 +1442,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
                 return;
             }
+
+            // allocate_function hands back uninitialized memory (malloc-shaped, not zeroed). completeness
+            // is guaranteed by the fragment bitmap plus validated offsets today, but zeroing means any
+            // future logic error that skips storing a fragment leaks zeros into the delivered packet
+            // instead of stale heap contents.
+            memset( reassembly_data->packet_data, 0, packet_buffer_size );
+
             reassembly_data->packet_bytes = 0;
             reassembly_data->packet_header_bytes = 0;
             memset( reassembly_data->fragment_received, 0, sizeof( reassembly_data->fragment_received ) );
