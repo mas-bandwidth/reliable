@@ -3104,6 +3104,107 @@ void test_fragment_reassembly_alloc_failure()
     }
 }
 
+// security#26-2: the reassembly buffer is allocated through the caller's allocator, which is
+// malloc-shaped and returns uninitialized memory. Completeness is guaranteed today by the
+// fragment bitmap plus validated offsets, but zeroing the buffer means a future logic error that
+// skips storing a fragment leaks zeros into the delivered packet instead of stale heap contents.
+
+struct test_poison_allocate_context_t
+{
+    int poison;             // when set, freshly returned memory is filled with 0xCC
+};
+
+static void * test_poison_allocate_function( void * context, size_t bytes )
+{
+    struct test_poison_allocate_context_t * poison_context = (struct test_poison_allocate_context_t*) context;
+
+    void * allocation = malloc( bytes );
+    check( allocation );
+
+    if ( poison_context->poison )
+    {
+        memset( allocation, 0xCC, bytes );
+    }
+
+    return allocation;
+}
+
+static void test_poison_free_function( void * context, void * pointer )
+{
+    (void) context;
+    free( pointer );
+}
+
+static void test_fragment_reassembly_buffer_zeroed()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct test_poison_allocate_context_t poison_context;
+    memset( &poison_context, 0, sizeof( poison_context ) );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    receiver_config.allocator_context = &poison_context;
+    receiver_config.allocate_function = &test_poison_allocate_function;
+    receiver_config.free_function = &test_poison_free_function;
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+    check( context.sender );
+    check( context.receiver );
+
+    // from here on the receive path's allocations are filled with the poison byte, so a buffer
+    // that is not explicitly zeroed is visibly non-zero
+    poison_context.poison = 1;
+
+    // deliver only the first fragment: the reassembly buffer is allocated and fragment 0 is
+    // stored, but the tail of the buffer is never written
+    context.allow_packets = 1;
+
+    uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+    int packet_bytes = sender_config.fragment_size + sender_config.fragment_size / 2;
+    uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+    generate_packet_data_with_size( sequence, packet_data, packet_bytes );
+    reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+
+    struct reliable_fragment_reassembly_data_t * reassembly_data =
+        (struct reliable_fragment_reassembly_data_t*) reliable_sequence_buffer_find( context.receiver->fragment_reassembly, sequence );
+
+    check( reassembly_data );
+    check( reassembly_data->packet_data );
+
+    const size_t packet_buffer_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES +
+        (size_t) reassembly_data->num_fragments_total * (size_t) sender_config.fragment_size + 8;
+
+    // fragment 0 only writes near the front of the buffer, so the last byte is untouched and must
+    // be zero. before the fix it still held the allocator's 0xCC poison.
+    check( reassembly_data->packet_data[packet_buffer_size - 1] == 0 );
+
+    poison_context.poison = 0;
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
 static void test_endpoint_reset()
 {
     double time = 100.0;
@@ -3660,6 +3761,28 @@ static void test_endpoint_create_allocation_failure()
     }
 }
 
+// security#26-3: reliable_printf logs the endpoint name with "%s". A caller that fills all 256
+// bytes of config.name with no NUL would make that log read past the array, so create forces a
+// terminator on its own copy.
+
+static void test_endpoint_name_terminated()
+{
+    struct reliable_config_t config;
+    reliable_default_config( &config );
+
+    // a caller is allowed to fill the whole name with no terminator
+    memset( config.name, 'x', sizeof( config.name ) );
+
+    config.transmit_packet_function = &test_transmit_packet_function;
+    config.process_packet_function = &test_process_packet_function;
+
+    struct reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, 0.0 );
+    check( endpoint );
+    check( endpoint->config.name[sizeof( endpoint->config.name ) - 1] == '\0' );
+
+    reliable_endpoint_destroy( endpoint );
+}
+
 // RL-07: the sequence number crosses 65535 to 0
 
 static uint8_t test_wrap_acked[65536];
@@ -4073,12 +4196,14 @@ void reliable_test()
         RUN_TEST( test_sequence_buffer_rollover );
         RUN_TEST( test_fragment_cleanup );
         RUN_TEST( test_fragment_reassembly_alloc_failure );
+        RUN_TEST( test_fragment_reassembly_buffer_zeroed );
         RUN_TEST( test_rtt );
         RUN_TEST( test_endpoint_reset );
         RUN_TEST( test_endpoint_reset_clears_stats );
         RUN_TEST( test_rtt_min_large );
         RUN_TEST( test_endpoint_create_invalid_config );
         RUN_TEST( test_endpoint_create_allocation_failure );
+        RUN_TEST( test_endpoint_name_terminated );
         RUN_TEST( test_sequence_wrap );
         RUN_TEST( test_fragment_counts );
         RUN_TEST( test_truncated_packets );
