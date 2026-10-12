@@ -45,6 +45,12 @@ architecture-dependent (FMA is in the aarch64 baseline and absent from the x86-6
 float arithmetic near a wire diverges bit-wise between architectures without it. If you
 compile `reliable.c` into your own build rather than linking the library, carry the same flag.
 
+`test_fp_contract_off` in the test binary is the canary for that flag: it evaluates
+`a * b + c` on values whose bits differ between one rounding and a fused multiply-add, and
+fails if the compiler contracted. The `oss_fuzz_fp_contract` ctest holds `oss-fuzz/build.sh`
+-- the one build path that does not go through CMake -- to `-ffp-contract=off` on every
+compile line.
+
 ## Building on Windows
 
 You need Visual Studio with the C++ workload installed (CMake is included, or install it separately).
