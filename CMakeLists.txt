@@ -166,6 +166,13 @@ if(RELIABLE_BUILD_TESTS)
         -DRELIABLE_HEADER=${CMAKE_CURRENT_SOURCE_DIR}/reliable.h
         -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/symbols/check_header.cmake)
 
+    # oss-fuzz/build.sh is the one build path that does not go through this file, so the
+    # estate's -ffp-contract=off floor has to be pinned there separately. this holds every
+    # $CC/$CXX compile line in it to the flag, on every leg.
+    add_test(NAME oss_fuzz_fp_contract COMMAND ${CMAKE_COMMAND}
+        -DRELIABLE_OSS_FUZZ_BUILD_SCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/oss-fuzz/build.sh
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/symbols/check_oss_fuzz_fp_contract.cmake)
+
     # configuring with tests off must not need a C++ compiler
     add_test(NAME configure_without_cxx COMMAND ${CMAKE_COMMAND}
         -S ${CMAKE_CURRENT_SOURCE_DIR}

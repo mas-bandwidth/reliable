@@ -24,9 +24,78 @@
 
 #include "reliable.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 #include <assert.h>
 
 extern "C" void reliable_test();
+
+// red-first canary for the estate floating point floor (CMakeLists.txt:64/:66,
+// BUILDING.md). a * b + c rounds twice with -ffp-contract=off and once when the
+// compiler contracts it to a fused multiply-add, and the two answers differ in the
+// low bits. the inputs are read through volatile so the compiler cannot fold the
+// expression to the correctly rounded result at compile time and hide the
+// contraction: only a real fma instruction, or its absence, decides the bits. the
+// expected zero was measured with clang 21 on arm64 (Apple) and gcc 13 on x86-64;
+// -ffp-contract=on, =fast and the compiler default give 0x33800000 (float) and
+// 0x3C90000000000000 (double) instead.
+static void test_fp_contract_off()
+{
+    printf( "test_fp_contract_off\n" );
+
+    // float: a = b = 1 + 2^-12, c = -( 1 + 2^-11 ).
+    {
+        volatile uint32_t a_bits = 0x3F800800u;
+        volatile uint32_t b_bits = 0x3F800800u;
+        volatile uint32_t c_bits = 0xBF801000u;
+
+        float a, b, c;
+        uint32_t bits;
+
+        bits = a_bits; memcpy( &a, &bits, sizeof( a ) );
+        bits = b_bits; memcpy( &b, &bits, sizeof( b ) );
+        bits = c_bits; memcpy( &c, &bits, sizeof( c ) );
+
+        volatile float result = a * b + c;
+        float result_value = result;
+        memcpy( &bits, &result_value, sizeof( bits ) );
+
+        if ( bits != 0x00000000u )
+        {
+            printf( "check failed: ( float a * b + c == 0x00000000 ), got 0x%08x, function %s, file %s, line %d\n",
+                    bits, __FUNCTION__, __FILE__, __LINE__ );
+            fflush( stdout );
+            exit( 1 );
+        }
+    }
+
+    // double: a = b = 1 + 2^-27, c = -( 1 + 2^-26 ).
+    {
+        volatile uint64_t a_bits = 0x3FF0000002000000ull;
+        volatile uint64_t b_bits = 0x3FF0000002000000ull;
+        volatile uint64_t c_bits = 0xBFF0000004000000ull;
+
+        double a, b, c;
+        uint64_t bits;
+
+        bits = a_bits; memcpy( &a, &bits, sizeof( a ) );
+        bits = b_bits; memcpy( &b, &bits, sizeof( b ) );
+        bits = c_bits; memcpy( &c, &bits, sizeof( c ) );
+
+        volatile double result = a * b + c;
+        double result_value = result;
+        memcpy( &bits, &result_value, sizeof( bits ) );
+
+        if ( bits != 0x0000000000000000ull )
+        {
+            printf( "check failed: ( double a * b + c == 0x0000000000000000 ), got 0x%016llx, function %s, file %s, line %d\n",
+                    (unsigned long long) bits, __FUNCTION__, __FILE__, __LINE__ );
+            fflush( stdout );
+            exit( 1 );
+        }
+    }
+}
 
 int main( int argc, char ** argv )
 {
@@ -38,6 +107,8 @@ int main( int argc, char ** argv )
    reliable_init();
 
    reliable_test();
+
+   test_fp_contract_off();
 
    reliable_term();
 
