@@ -661,9 +661,10 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
-    if ( (int64_t) config->packet_header_size + (int64_t) config->max_packet_size > INT_MAX )
+    if ( (int64_t) config->packet_header_size + (int64_t) config->max_packet_size + 
+         RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES > INT_MAX )
     {
-        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] packet_header_size (%d) plus max_packet_size (%d) does not fit a packet length\n",
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] packet_header_size (%d) plus max_packet_size (%d) does not fit a received packet length\n",
                          RELIABLE_MAX_NAME_CHARS, config->name, config->packet_header_size, config->max_packet_size );
         return 0;
     }
