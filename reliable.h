@@ -145,9 +145,9 @@ struct reliable_config_t
     int max_fragments;                                                          // maximum number of fragments per-packet. 256 max. must cover max_packet_size / fragment_size
     int fragment_size;                                                          // size of each fragment (bytes)
     int ack_buffer_size;                                                        // maximum number of acks buffered between calls to reliable_endpoint_clear_acks
-    int sent_packets_buffer_size;                                               // number of sent packets tracked for acks, packet loss and bandwidth stats
-    int received_packets_buffer_size;                                           // number of received packets tracked. also the window for stale and duplicate packet rejection
-    int fragment_reassembly_buffer_size;                                        // number of packets that can be under reassembly from fragments at the same time
+    int sent_packets_buffer_size;                                               // number of sent packets tracked for acks, packet loss and bandwidth stats. a power of two no larger than 16384
+    int received_packets_buffer_size;                                           // number of received packets tracked. also the window for stale and duplicate packet rejection. a power of two no larger than 16384
+    int fragment_reassembly_buffer_size;                                        // number of packets that can be under reassembly from fragments at the same time. a power of two no larger than 16384
     float rtt_smoothing_factor;                                                 // exponential smoothing factor for the rtt moving average
     int rtt_history_size;                                                       // number of rtt samples kept for min/max/avg rtt and jitter
     float packet_loss_smoothing_factor;                                         // exponential smoothing factor for packet loss
