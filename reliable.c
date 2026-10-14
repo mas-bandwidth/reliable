@@ -316,16 +316,6 @@ static void * reliable_sequence_buffer_insert( struct reliable_sequence_buffer_t
     return sequence_buffer->entry_data + index * sequence_buffer->entry_stride;
 }
 
-static void reliable_sequence_buffer_advance( struct reliable_sequence_buffer_t * sequence_buffer, uint16_t sequence )
-{
-    reliable_assert( sequence_buffer );
-    if ( reliable_sequence_greater_than( sequence + 1, sequence_buffer->sequence ) )
-    {
-        reliable_sequence_buffer_remove_entries( sequence_buffer, sequence_buffer->sequence, sequence, NULL );
-        sequence_buffer->sequence = sequence + 1;
-    }
-}
-
 static void * reliable_sequence_buffer_insert_with_cleanup( struct reliable_sequence_buffer_t * sequence_buffer, 
                                                      uint16_t sequence, 
                                                      void (*cleanup_function)(void*,void*,void(*free_function)(void*,void*)) )
@@ -1414,6 +1404,14 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             return;
         }
 
+        if ( !reliable_sequence_buffer_test_insert( endpoint->received_packets, sequence ) )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. fragment %d of packet %d is stale\n",
+                endpoint->config.name, fragment_id, sequence );
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
+            return;
+        }
+
         struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*)
             reliable_sequence_buffer_find( endpoint->fragment_reassembly, sequence );
 
@@ -1429,7 +1427,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 return;
             }
 
-            reliable_sequence_buffer_advance( endpoint->received_packets, sequence );
+            // the received window moves when the reassembled packet is accepted, not here
 
             size_t packet_buffer_size = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES + (size_t) num_fragments * (size_t) endpoint->config.fragment_size + 8;
 
