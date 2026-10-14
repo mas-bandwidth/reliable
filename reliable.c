@@ -3676,6 +3676,95 @@ static void test_endpoint_create_invalid_config()
     check( !reliable_checked_size( INT_MAX, SIZE_MAX / 3, &bytes ) );
 }
 
+// RL-06: the three sequence buffers back a 16-bit sequence window, so a size that does not
+// divide 65536 aliases two in-window sequences and a size above half the window makes
+// sequence 0 stale. both break the send path, so the config check must refuse them up front
+
+static void test_config_refuses_bad_sequence_buffer_sizes()
+{
+    struct reliable_config_t valid;
+
+    reliable_default_config( &valid );
+    valid.transmit_packet_function = &test_transmit_packet_function;
+    valid.process_packet_function = &test_process_packet_function;
+
+    // not a power of two, and powers of two above 16384: refused on each of the three fields
+
+    const int bad_sizes[] = { 100, 32768, 65535, 65536 };
+    const int num_bad_sizes = (int) ( sizeof( bad_sizes ) / sizeof( bad_sizes[0] ) );
+
+    for ( int i = 0; i < num_bad_sizes; ++i )
+    {
+        struct reliable_config_t config;
+
+        config = valid; config.sent_packets_buffer_size = bad_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+        config = valid; config.received_packets_buffer_size = bad_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+        config = valid; config.fragment_reassembly_buffer_size = bad_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+    }
+
+    // 256 (the default) and 16384 (the largest allowed) are accepted on each of the three fields
+
+    const int good_sizes[] = { 256, 16384 };
+    const int num_good_sizes = (int) ( sizeof( good_sizes ) / sizeof( good_sizes[0] ) );
+
+    for ( int i = 0; i < num_good_sizes; ++i )
+    {
+        struct reliable_config_t config;
+        struct reliable_endpoint_t * endpoint;
+
+        config = valid; config.sent_packets_buffer_size = good_sizes[i];
+        endpoint = reliable_endpoint_create( &config, 0.0 );
+        check( endpoint );
+        reliable_endpoint_destroy( endpoint );
+
+        config = valid; config.received_packets_buffer_size = good_sizes[i];
+        endpoint = reliable_endpoint_create( &config, 0.0 );
+        check( endpoint );
+        reliable_endpoint_destroy( endpoint );
+
+        config = valid; config.fragment_reassembly_buffer_size = good_sizes[i];
+        endpoint = reliable_endpoint_create( &config, 0.0 );
+        check( endpoint );
+        reliable_endpoint_destroy( endpoint );
+    }
+
+    // and a 16384 sequence buffer carries traffic: one byte from the sender is received and
+    // acked by the peer through the in-memory callbacks
+
+    struct test_pair_t pair;
+
+    test_pair_configs( &pair );
+    pair.sender_config.sent_packets_buffer_size = 16384;
+    pair.sender_config.received_packets_buffer_size = 16384;
+    pair.sender_config.fragment_reassembly_buffer_size = 16384;
+    test_pair_create( &pair, 100.0 );
+
+    uint8_t packet[1];
+    memset( packet, 0, sizeof( packet ) );
+
+    reliable_endpoint_send_packet( pair.context.sender, packet, sizeof( packet ) );
+
+    reliable_endpoint_update( pair.context.sender, 100.1 );
+    reliable_endpoint_update( pair.context.receiver, 100.1 );
+
+    reliable_endpoint_send_packet( pair.context.receiver, packet, sizeof( packet ) );
+
+    reliable_endpoint_update( pair.context.sender, 100.1 );
+
+    int num_acks = 0;
+    RELIABLE_CONST uint16_t * acks = reliable_endpoint_get_acks( pair.context.sender, &num_acks );
+    check( acks );
+    check( num_acks == 1 );
+    reliable_endpoint_clear_acks( pair.context.sender );
+
+    test_pair_destroy( &pair );
+}
+
 // RL-06: every allocation failure returns NULL, in every build, having freed what it took
 
 #define TEST_FAILING_ALLOCATOR_SLOTS 64
@@ -4409,6 +4498,7 @@ void reliable_test()
         RUN_TEST( test_endpoint_reset_clears_stats );
         RUN_TEST( test_rtt_min_large );
         RUN_TEST( test_endpoint_create_invalid_config );
+        RUN_TEST( test_config_refuses_bad_sequence_buffer_sizes );
         RUN_TEST( test_endpoint_create_allocation_failure );
         RUN_TEST( test_endpoint_name_terminated );
         RUN_TEST( test_config_name_bounded_in_rejection_log );
