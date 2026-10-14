@@ -4247,6 +4247,138 @@ static void test_public_api_surface()
     check( reliable_init() == RELIABLE_OK );
 }
 
+// a fragment of a packet that never completes must not move the received window, or genuine
+// packets behind it are dropped as stale
+
+struct test_fragment_window_context_t
+{
+    struct test_context_t context;
+    int num_processed_sequence_zero;
+    int processed_bytes_sequence_zero;
+};
+
+static int test_fragment_window_process_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    struct test_fragment_window_context_t * context = (struct test_fragment_window_context_t*) _context;
+
+    (void) packet_data;
+
+    if ( id == 1 && sequence == 0 )
+    {
+        context->num_processed_sequence_zero++;
+        context->processed_bytes_sequence_zero = packet_bytes;
+    }
+
+    return 1;
+}
+
+static void test_fragment_window_create( struct test_fragment_window_context_t * window, double time )
+{
+    memset( window, 0, sizeof( *window ) );
+    test_default_context( &window->context );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = window;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_fragment_window_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = window;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_fragment_window_process_packet_function;
+
+    window->context.sender = reliable_endpoint_create( &sender_config, time );
+    window->context.receiver = reliable_endpoint_create( &receiver_config, time );
+    check( window->context.sender );
+    check( window->context.receiver );
+}
+
+static void test_fragment_window_destroy( struct test_fragment_window_context_t * window )
+{
+    reliable_endpoint_destroy( window->context.sender );
+    reliable_endpoint_destroy( window->context.receiver );
+}
+
+static void test_unfinished_fragment_then_genuine_packet( uint16_t fragment_sequence, int expect_stale_fragment )
+{
+    struct test_fragment_window_context_t window;
+    test_fragment_window_create( &window, 100.0 );
+
+    // the last fragment (1 of 2) of a packet whose first fragment never arrives, with a one-byte payload
+
+    uint8_t fragment[RELIABLE_FRAGMENT_HEADER_BYTES + 1];
+    fragment[0] = 1;
+    fragment[1] = (uint8_t) ( fragment_sequence & 0xFF );
+    fragment[2] = (uint8_t) ( fragment_sequence >> 8 );
+    fragment[3] = 1;
+    fragment[4] = 1;
+    fragment[5] = 0xAB;
+
+    reliable_endpoint_receive_packet( window.context.receiver, fragment, (int) sizeof( fragment ) );
+
+    // a fragment behind the received window is refused before any reassembly entry exists
+
+    check( reliable_endpoint_counters( window.context.receiver )[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] == (uint64_t) expect_stale_fragment );
+    check( ( reliable_sequence_buffer_find( window.context.receiver->fragment_reassembly, fragment_sequence ) == NULL ) == ( expect_stale_fragment != 0 ) );
+
+    // then a genuine packet at sequence 0 from the sender
+
+    check( reliable_endpoint_next_packet_sequence( window.context.sender ) == 0 );
+
+    uint8_t packet_data[64];
+    memset( packet_data, 0, sizeof( packet_data ) );
+    reliable_endpoint_send_packet( window.context.sender, packet_data, (int) sizeof( packet_data ) );
+
+    RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( window.context.receiver );
+
+    check( window.num_processed_sequence_zero == 1 );
+    check( window.processed_bytes_sequence_zero == (int) sizeof( packet_data ) );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE] == 0 );
+
+    test_fragment_window_destroy( &window );
+}
+
+static void test_unfinished_fragment_does_not_stale_packets()
+{
+    // a fragment two windows ahead of a cold receiver, then one far enough ahead to be behind it
+
+    test_unfinished_fragment_then_genuine_packet( 512, 0 );
+    test_unfinished_fragment_then_genuine_packet( 32512, 1 );
+
+    // an in-order fragmented packet at sequence 0 still reassembles and is delivered
+
+    struct test_fragment_window_context_t window;
+    test_fragment_window_create( &window, 100.0 );
+
+    struct reliable_config_t config;
+    reliable_default_config( &config );
+
+    uint8_t packet_data[TEST_MAX_PACKET_BYTES];
+    int packet_bytes = config.fragment_size + config.fragment_size / 2;
+    check( packet_bytes > config.fragment_above );
+    uint16_t sequence = reliable_endpoint_next_packet_sequence( window.context.sender );
+    check( sequence == 0 );
+    generate_packet_data_with_size( sequence, packet_data, packet_bytes );
+    reliable_endpoint_send_packet( window.context.sender, packet_data, packet_bytes );
+
+    RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( window.context.receiver );
+
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED] == 2 );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] == 0 );
+    check( window.num_processed_sequence_zero == 1 );
+    check( window.processed_bytes_sequence_zero == packet_bytes );
+
+    test_fragment_window_destroy( &window );
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -4285,6 +4417,7 @@ void reliable_test()
         RUN_TEST( test_sequence_wrap );
         RUN_TEST( test_fragment_counts );
         RUN_TEST( test_truncated_packets );
+        RUN_TEST( test_unfinished_fragment_does_not_stale_packets );
         RUN_TEST( test_public_api_surface );
     }
 }
