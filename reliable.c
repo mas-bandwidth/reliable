@@ -3712,6 +3712,28 @@ static void test_endpoint_create_invalid_config()
     check( !reliable_checked_size( INT_MAX, SIZE_MAX / 3, &bytes ) );
 }
 
+// the received byte statistic adds the header size to the whole on-wire length, which can carry
+// up to RELIABLE_MAX_PACKET_HEADER_BYTES more than the payload, so a header-plus-packet size
+// that fits a packet length can still overflow the byte accounting. a config at that edge must
+// be refused
+
+static void test_config_refuses_header_plus_packet_near_int_max()
+{
+    struct reliable_config_t config;
+
+    reliable_default_config( &config );
+    config.transmit_packet_function = &test_transmit_packet_function;
+    config.process_packet_function = &test_process_packet_function;
+
+    config.packet_header_size = 9;
+    config.max_packet_size = INT_MAX - RELIABLE_MAX_PACKET_HEADER_BYTES - RELIABLE_FRAGMENT_HEADER_BYTES;
+    config.fragment_above = 1;
+    config.max_fragments = 9;
+    config.fragment_size = ( INT_MAX - 14 ) / 9 + 1;
+
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+}
+
 // RL-06: the three sequence buffers back a 16-bit sequence window, so a size that does not
 // divide 65536 aliases two in-window sequences and a size above half the window makes
 // sequence 0 stale. both break the send path, so the config check must refuse them up front
@@ -4597,6 +4619,7 @@ void reliable_test()
         RUN_TEST( test_endpoint_reset_clears_stats );
         RUN_TEST( test_rtt_min_large );
         RUN_TEST( test_endpoint_create_invalid_config );
+        RUN_TEST( test_config_refuses_header_plus_packet_near_int_max );
         RUN_TEST( test_config_refuses_bad_sequence_buffer_sizes );
         RUN_TEST( test_endpoint_create_allocation_failure );
         RUN_TEST( test_endpoint_name_terminated );
