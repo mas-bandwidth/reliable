@@ -543,6 +543,23 @@ void reliable_default_config( struct reliable_config_t * config )
 
 #define RELIABLE_MAX_NAME_CHARS ( (int) sizeof( ( (struct reliable_config_t *) NULL )->name ) - 1 )
 
+// the three sequence buffers are indexed as `sequence % num_entries` over a 16-bit sequence
+// space. a size that does not divide 65536 makes two in-window sequences share a slot after a
+// wrap, and a size above half the window makes the stale test reject sequence 0 on a cold
+// buffer, so reliable_sequence_buffer_insert returns NULL and the send path writes through it.
+// a power of two no larger than 16384 satisfies both
+
+static int reliable_sequence_buffer_size_valid( const char * name, const char * field, int size )
+{
+    if ( size < 1 || size > 16384 || ( size & ( size - 1 ) ) != 0 )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] %s (%d) must be a power of two no larger than 16384\n",
+                         RELIABLE_MAX_NAME_CHARS, name, field, size );
+        return 0;
+    }
+    return 1;
+}
+
 // checks the config a caller hands to reliable_endpoint_create. every field is range checked
 // and the two relationships between fields are checked: a fragment threshold above the maximum
 // packet size can never fire, and a fragment count that does not cover the maximum packet size
@@ -580,11 +597,24 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
-    if ( config->ack_buffer_size <= 0 || config->sent_packets_buffer_size <= 0 || 
-         config->received_packets_buffer_size <= 0 || config->fragment_reassembly_buffer_size <= 0 || 
-         config->rtt_history_size <= 0 )
+    if ( config->ack_buffer_size <= 0 || config->rtt_history_size <= 0 )
     {
         reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] buffer sizes must be positive\n", RELIABLE_MAX_NAME_CHARS, config->name );
+        return 0;
+    }
+
+    if ( !reliable_sequence_buffer_size_valid( config->name, "sent_packets_buffer_size", config->sent_packets_buffer_size ) )
+    {
+        return 0;
+    }
+
+    if ( !reliable_sequence_buffer_size_valid( config->name, "received_packets_buffer_size", config->received_packets_buffer_size ) )
+    {
+        return 0;
+    }
+
+    if ( !reliable_sequence_buffer_size_valid( config->name, "fragment_reassembly_buffer_size", config->fragment_reassembly_buffer_size ) )
+    {
         return 0;
     }
 
