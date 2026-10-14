@@ -4163,6 +4163,69 @@ static void test_truncated_packets()
     reliable_endpoint_destroy( receiver );
 }
 
+// a zero length receive comes from the network, so it is counted invalid and ignored before any
+// read of packet_data. the assert hook is replaced for the duration of the test so a fired assert
+// is counted instead of trapping, and the process callback must never run
+
+static int test_receive_empty_packet_assert_calls = 0;
+
+static void test_receive_empty_packet_assert_function( RELIABLE_CONST char * condition, 
+                                                       RELIABLE_CONST char * function,
+                                                       RELIABLE_CONST char * file,
+                                                       int line )
+{
+    (void) condition;
+    (void) function;
+    (void) file;
+    (void) line;
+
+    test_receive_empty_packet_assert_calls++;
+}
+
+static int test_receive_empty_packet_process_calls = 0;
+
+static int test_receive_empty_packet_process_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) _context;
+    (void) id;
+    (void) sequence;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    test_receive_empty_packet_process_calls++;
+
+    return 1;
+}
+
+static void test_receive_empty_packet_is_counted_invalid()
+{
+    struct reliable_config_t config;
+    reliable_default_config( &config );
+    config.transmit_packet_function = &test_transmit_packet_function;
+    config.process_packet_function = &test_receive_empty_packet_process_function;
+
+    struct reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, 0.0 );
+    check( endpoint );
+
+    void (*previous_assert_function)( RELIABLE_CONST char *, RELIABLE_CONST char *, RELIABLE_CONST char *, int ) = reliable_assert_function;
+
+    test_receive_empty_packet_assert_calls = 0;
+    test_receive_empty_packet_process_calls = 0;
+
+    reliable_set_assert_function( &test_receive_empty_packet_assert_function );
+
+    uint8_t sentinel = 0x2A;
+    reliable_endpoint_receive_packet( endpoint, &sentinel, 0 );
+
+    reliable_set_assert_function( previous_assert_function );
+
+    check( test_receive_empty_packet_assert_calls == 0 );
+    check( reliable_endpoint_counters( endpoint )[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID] == 1 );
+    check( test_receive_empty_packet_process_calls == 0 );
+
+    reliable_endpoint_destroy( endpoint );
+}
+
 // every function reliable.h declares is called at least once by the suite. this test names
 // them all in one place so a new entry point cannot be added without being exercised
 
@@ -4416,6 +4479,7 @@ void reliable_test()
         RUN_TEST( test_fragment_counts );
         RUN_TEST( test_truncated_packets );
         RUN_TEST( test_unfinished_fragment_does_not_stale_packets );
+        RUN_TEST( test_receive_empty_packet_is_counted_invalid );
         RUN_TEST( test_public_api_surface );
     }
 }
