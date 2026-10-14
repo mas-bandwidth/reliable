@@ -3004,6 +3004,69 @@ void test_tracking_free_function( void * context, void * pointer )
     free( pointer );
 }
 
+// tracks the bytes currently held through it, so a test can observe how much memory an endpoint
+// keeps at once. the free function is handed only a pointer, so the size is recorded alongside it.
+
+struct test_byte_budget_allocate_context_t
+{
+    void * pointers[1024];
+    size_t bytes[1024];
+    size_t outstanding_bytes;
+    size_t max_outstanding_bytes;
+};
+
+static void * test_byte_budget_allocate_function( void * context, size_t bytes )
+{
+    struct test_byte_budget_allocate_context_t * budget_context = (struct test_byte_budget_allocate_context_t*) context;
+
+    void * allocation = malloc( bytes );
+    if ( !allocation )
+    {
+        return NULL;
+    }
+
+    int i;
+    for ( i = 0; i < (int) ARRAY_LENGTH( budget_context->pointers ); ++i )
+    {
+        if ( budget_context->pointers[i] == NULL )
+        {
+            break;
+        }
+    }
+    check( i < (int) ARRAY_LENGTH( budget_context->pointers ) );
+
+    budget_context->pointers[i] = allocation;
+    budget_context->bytes[i] = bytes;
+    budget_context->outstanding_bytes += bytes;
+    if ( budget_context->outstanding_bytes > budget_context->max_outstanding_bytes )
+    {
+        budget_context->max_outstanding_bytes = budget_context->outstanding_bytes;
+    }
+
+    return allocation;
+}
+
+static void test_byte_budget_free_function( void * context, void * pointer )
+{
+    struct test_byte_budget_allocate_context_t * budget_context = (struct test_byte_budget_allocate_context_t*) context;
+
+    int i;
+    for ( i = 0; i < (int) ARRAY_LENGTH( budget_context->pointers ); ++i )
+    {
+        if ( budget_context->pointers[i] == pointer )
+        {
+            break;
+        }
+    }
+    check( i < (int) ARRAY_LENGTH( budget_context->pointers ) );
+
+    budget_context->outstanding_bytes -= budget_context->bytes[i];
+    budget_context->pointers[i] = NULL;
+    budget_context->bytes[i] = 0;
+
+    free( pointer );
+}
+
 void test_fragment_cleanup()
 {
     double time = 100.0;
@@ -4588,6 +4651,94 @@ static void test_unfinished_fragment_does_not_stale_packets()
     test_fragment_window_destroy( &window );
 }
 
+// a first fragment allocates room for every fragment the header claims. without a bound, a few
+// bytes on the wire hold a large buffer per slot until eviction, reset or destroy. the configured
+// byte budget refuses a first fragment that would push unfinished reassemblies past it.
+
+static void test_unfinished_reassembly_respects_byte_budget()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct test_byte_budget_allocate_context_t budget_context;
+    memset( &budget_context, 0, sizeof( budget_context ) );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    receiver_config.allocator_context = &budget_context;
+    receiver_config.allocate_function = &test_byte_budget_allocate_function;
+    receiver_config.free_function = &test_byte_budget_free_function;
+
+    const int byte_budget = 64 * 1024;
+    receiver_config.fragment_reassembly_byte_budget = byte_budget;
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.transmit_packet_function = &test_transmit_packet_function;
+    sender_config.process_packet_function = &test_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.transmit_packet_function = &test_transmit_packet_function;
+    receiver_config.process_packet_function = &test_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+    check( context.sender );
+    check( context.receiver );
+
+    // everything the endpoints hold after create is the baseline. only reassembly buffers added
+    // afterwards count against the budget.
+
+    const size_t baseline_bytes = budget_context.outstanding_bytes;
+
+    // one slot's worth: the room a first fragment allocates for a 16-fragment packet at the default fragment size
+
+    const int num_fragments = 16;
+    const size_t slot_bytes = (size_t) RELIABLE_MAX_PACKET_HEADER_BYTES +
+        (size_t) num_fragments * (size_t) receiver_config.fragment_size + 8;
+
+    // 64 last fragments for sequences 0..63, each claiming 16 fragments, with fragment 0 never
+    // arriving. every one is a first fragment for its packet and would allocate a full slot.
+
+    int sequence;
+    for ( sequence = 0; sequence < 64; ++sequence )
+    {
+        uint8_t fragment[RELIABLE_FRAGMENT_HEADER_BYTES + 1024];
+        fragment[0] = 1;
+        fragment[1] = (uint8_t) ( sequence & 0xFF );
+        fragment[2] = (uint8_t) ( ( sequence >> 8 ) & 0xFF );
+        fragment[3] = (uint8_t) ( num_fragments - 1 );      // the last fragment
+        fragment[4] = (uint8_t) ( num_fragments - 1 );
+        memset( fragment + RELIABLE_FRAGMENT_HEADER_BYTES, 0x5A, 1024 );
+
+        reliable_endpoint_receive_packet( context.receiver, fragment, (int) sizeof( fragment ) );
+
+        const size_t unfinished_bytes = budget_context.outstanding_bytes - baseline_bytes;
+        check( unfinished_bytes <= (size_t) byte_budget + slot_bytes );
+    }
+
+    // the endpoint never held the unbounded total (64 slots), and did allocate at least one slot
+
+    check( budget_context.max_outstanding_bytes - baseline_bytes <= (size_t) byte_budget + slot_bytes );
+    check( budget_context.max_outstanding_bytes - baseline_bytes >= slot_bytes );
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+
+    // every outstanding buffer came back through the free function
+
+    check( budget_context.outstanding_bytes == 0 );
+}
+
 #define RUN_TEST( test_function )                                           \
     do                                                                      \
     {                                                                       \
@@ -4629,6 +4780,7 @@ void reliable_test()
         RUN_TEST( test_fragment_counts );
         RUN_TEST( test_truncated_packets );
         RUN_TEST( test_unfinished_fragment_does_not_stale_packets );
+        RUN_TEST( test_unfinished_reassembly_respects_byte_budget );
         RUN_TEST( test_receive_empty_packet_is_counted_invalid );
         RUN_TEST( test_public_api_surface );
     }
