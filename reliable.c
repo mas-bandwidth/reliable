@@ -1239,7 +1239,13 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 {
     reliable_assert( endpoint );
     reliable_assert( packet_data );
-    reliable_assert( packet_bytes > 0 );
+
+    if ( packet_bytes <= 0 )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid packet. empty packet\n", endpoint->config.name );
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID]++;
+        return;
+    }
 
     if ( (int64_t) packet_bytes > (int64_t) endpoint->config.max_packet_size + RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES )
     {

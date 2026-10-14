@@ -217,7 +217,7 @@ RELIABLE_EXPORT uint16_t reliable_endpoint_next_packet_sequence( struct reliable
 
 RELIABLE_EXPORT void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes );
 
-// call this for each packet received from your socket. valid packets are passed to the process packet callback. stale and duplicate packets are dropped
+// call this for each packet received from your socket. valid packets are passed to the process packet callback. stale and duplicate packets are dropped. a zero length packet is counted invalid and ignored
 
 RELIABLE_EXPORT void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes );
 
