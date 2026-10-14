@@ -447,6 +447,7 @@ struct reliable_fragment_reassembly_data_t
     int num_fragments_received;
     int num_fragments_total;
     uint8_t * packet_data;
+    int packet_buffer_size;
     int packet_bytes;
     int packet_header_bytes;
     uint8_t fragment_received[256];
@@ -495,6 +496,27 @@ struct reliable_endpoint_t
     uint64_t counters[RELIABLE_ENDPOINT_NUM_COUNTERS];
 };
 
+// counts the bytes held by unfinished reassemblies. derived from the live entries rather than kept
+// as a running total, so every path that frees a reassembly (completion, eviction, reset, destroy)
+// returns the budget with no separate decrement to keep in sync.
+
+static size_t reliable_endpoint_unfinished_reassembly_bytes( struct reliable_endpoint_t * endpoint )
+{
+    size_t total = 0;
+    int i;
+    for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
+    {
+        struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*)
+            reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
+
+        if ( reassembly_data && reassembly_data->packet_data )
+        {
+            total += (size_t) reassembly_data->packet_buffer_size;
+        }
+    }
+    return total;
+}
+
 struct reliable_sent_packet_data_t
 {
     double time;
@@ -529,6 +551,7 @@ void reliable_default_config( struct reliable_config_t * config )
     config->sent_packets_buffer_size = 256;
     config->received_packets_buffer_size = 256;
     config->fragment_reassembly_buffer_size = 64;
+    config->fragment_reassembly_byte_budget = 256 * 1024;
     config->rtt_smoothing_factor = 0.0025f;
     config->rtt_history_size = 512;
     config->packet_loss_smoothing_factor = 0.1f;
@@ -615,6 +638,12 @@ static int reliable_config_valid( struct reliable_config_t * config )
 
     if ( !reliable_sequence_buffer_size_valid( config->name, "fragment_reassembly_buffer_size", config->fragment_reassembly_buffer_size ) )
     {
+        return 0;
+    }
+
+    if ( config->fragment_reassembly_byte_budget < 0 )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] fragment_reassembly_byte_budget must not be negative\n", RELIABLE_MAX_NAME_CHARS, config->name );
         return 0;
     }
 
@@ -1473,6 +1502,26 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
             reassembly_data->ack_bits = 0;
             reassembly_data->num_fragments_received = 0;
             reassembly_data->num_fragments_total = num_fragments;
+            reassembly_data->packet_data = NULL;
+            reassembly_data->packet_buffer_size = 0;
+
+            // a first fragment whose buffer would push unfinished reassemblies past the configured
+            // byte budget is refused. 0 means unbounded, the behaviour without the option.
+
+            if ( endpoint->config.fragment_reassembly_byte_budget > 0 )
+            {
+                const size_t unfinished_bytes = reliable_endpoint_unfinished_reassembly_bytes( endpoint );
+
+                if ( unfinished_bytes + packet_buffer_size > (size_t) endpoint->config.fragment_reassembly_byte_budget )
+                {
+                    reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring fragment %d of packet %d. reassembly byte budget exceeded\n",
+                        endpoint->config.name, fragment_id, sequence );
+                    reliable_sequence_buffer_remove_with_cleanup( endpoint->fragment_reassembly, sequence, reliable_fragment_reassembly_data_cleanup );
+                    endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
+                    return;
+                }
+            }
+
             reassembly_data->packet_data = (uint8_t*) endpoint->allocate_function( endpoint->allocator_context, packet_buffer_size );
             if ( !reassembly_data->packet_data )
             {
@@ -1484,6 +1533,8 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                 endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
                 return;
             }
+
+            reassembly_data->packet_buffer_size = (int) packet_buffer_size;
 
             // allocate_function hands back uninitialized memory (malloc-shaped, not zeroed). completeness
             // is guaranteed by the fragment bitmap plus validated offsets today, but zeroing means any
