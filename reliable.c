@@ -143,6 +143,11 @@ void reliable_term(void)
 
 // ---------------------------------------------------------------
 
+// the sequence buffers describe a window in the 16-bit sequence space. keeping their size well
+// within that space keeps the window arithmetic below unambiguous on both sides of a wrap
+
+#define RELIABLE_MAX_SEQUENCE_BUFFER_SIZE 16384
+
 static int reliable_sequence_greater_than( uint16_t s1, uint16_t s2 )
 {
     return ( ( s1 > s2 ) && ( s1 - s2 <= 32768 ) ) || 
@@ -595,6 +600,27 @@ static int reliable_config_valid( struct reliable_config_t * config )
          config->rtt_history_size <= 0 )
     {
         reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] buffer sizes must be positive\n", RELIABLE_MAX_NAME_CHARS, config->name );
+        return 0;
+    }
+
+    if ( config->sent_packets_buffer_size > RELIABLE_MAX_SEQUENCE_BUFFER_SIZE )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] sent_packets_buffer_size (%d) must not exceed %d\n",
+                         RELIABLE_MAX_NAME_CHARS, config->name, config->sent_packets_buffer_size, RELIABLE_MAX_SEQUENCE_BUFFER_SIZE );
+        return 0;
+    }
+
+    if ( config->received_packets_buffer_size > RELIABLE_MAX_SEQUENCE_BUFFER_SIZE )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] received_packets_buffer_size (%d) must not exceed %d\n",
+                         RELIABLE_MAX_NAME_CHARS, config->name, config->received_packets_buffer_size, RELIABLE_MAX_SEQUENCE_BUFFER_SIZE );
+        return 0;
+    }
+
+    if ( config->fragment_reassembly_buffer_size > RELIABLE_MAX_SEQUENCE_BUFFER_SIZE )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] fragment_reassembly_buffer_size (%d) must not exceed %d\n",
+                         RELIABLE_MAX_NAME_CHARS, config->name, config->fragment_reassembly_buffer_size, RELIABLE_MAX_SEQUENCE_BUFFER_SIZE );
         return 0;
     }
 
@@ -3645,6 +3671,47 @@ static void test_endpoint_create_invalid_config()
 
     config = valid; config.rtt_history_size = 0;
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    // buffer sizes beyond the usable sequence window are refused too
+
+    int invalid_buffer_sizes[3] = { RELIABLE_MAX_SEQUENCE_BUFFER_SIZE + 1, 32768, 65536 };
+
+    int i;
+    for ( i = 0; i < 3; ++i )
+    {
+        config = valid; config.sent_packets_buffer_size = invalid_buffer_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+        config = valid; config.received_packets_buffer_size = invalid_buffer_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+        config = valid; config.fragment_reassembly_buffer_size = invalid_buffer_sizes[i];
+        check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+    }
+
+    // the largest accepted size creates an endpoint pair that still sends and receives
+
+    struct test_pair_t pair;
+    test_pair_configs( &pair );
+
+    pair.sender_config.sent_packets_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+    pair.sender_config.received_packets_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+    pair.sender_config.fragment_reassembly_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+
+    pair.receiver_config.sent_packets_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+    pair.receiver_config.received_packets_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+    pair.receiver_config.fragment_reassembly_buffer_size = RELIABLE_MAX_SEQUENCE_BUFFER_SIZE;
+
+    test_pair_create( &pair, 0.0 );
+
+    uint8_t packet[8];
+    memset( packet, 0, sizeof( packet ) );
+
+    reliable_endpoint_send_packet( pair.context.sender, packet, sizeof( packet ) );
+
+    check( reliable_endpoint_counters( pair.context.receiver )[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 1 );
+
+    test_pair_destroy( &pair );
 
     config = valid; config.packet_header_size = -1;
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
