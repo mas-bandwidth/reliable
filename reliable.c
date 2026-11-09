@@ -691,6 +691,27 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
+    // smoothing factors are exponential moving average weights, so they must lie in [0,1].
+    // written as a negated range test so a NaN factor is refused as well as out of range values
+
+    if ( !( config->rtt_smoothing_factor >= 0.0f && config->rtt_smoothing_factor <= 1.0f ) )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] rtt_smoothing_factor must be between 0 and 1\n", RELIABLE_MAX_NAME_CHARS, config->name );
+        return 0;
+    }
+
+    if ( !( config->packet_loss_smoothing_factor >= 0.0f && config->packet_loss_smoothing_factor <= 1.0f ) )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] packet_loss_smoothing_factor must be between 0 and 1\n", RELIABLE_MAX_NAME_CHARS, config->name );
+        return 0;
+    }
+
+    if ( !( config->bandwidth_smoothing_factor >= 0.0f && config->bandwidth_smoothing_factor <= 1.0f ) )
+    {
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] bandwidth_smoothing_factor must be between 0 and 1\n", RELIABLE_MAX_NAME_CHARS, config->name );
+        return 0;
+    }
+
     return 1;
 }
 
@@ -4433,6 +4454,53 @@ static void test_endpoint_create_invalid_config()
 
     config = valid; config.rtt_history_size = 0;
     check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    // smoothing factors must be in [0,1], and NaN is refused
+
+    config = valid; config.rtt_smoothing_factor = -0.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.rtt_smoothing_factor = 1.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.rtt_smoothing_factor = NAN;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.packet_loss_smoothing_factor = -0.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.packet_loss_smoothing_factor = 1.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.packet_loss_smoothing_factor = NAN;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.bandwidth_smoothing_factor = -0.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.bandwidth_smoothing_factor = 1.1f;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config = valid; config.bandwidth_smoothing_factor = NAN;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    // the boundaries 0 and 1 are accepted
+
+    config = valid;
+    config.rtt_smoothing_factor = 0.0f;
+    config.packet_loss_smoothing_factor = 0.0f;
+    config.bandwidth_smoothing_factor = 0.0f;
+    endpoint = reliable_endpoint_create( &config, 0.0 );
+    check( endpoint );
+    reliable_endpoint_destroy( endpoint );
+
+    config = valid;
+    config.rtt_smoothing_factor = 1.0f;
+    config.packet_loss_smoothing_factor = 1.0f;
+    config.bandwidth_smoothing_factor = 1.0f;
+    endpoint = reliable_endpoint_create( &config, 0.0 );
+    check( endpoint );
+    reliable_endpoint_destroy( endpoint );
 
     // buffer sizes beyond the usable sequence window are refused too
 
