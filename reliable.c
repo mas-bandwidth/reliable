@@ -184,6 +184,23 @@ static struct reliable_sequence_buffer_t * reliable_sequence_buffer_create( int 
     reliable_assert( num_entries > 0 );
     reliable_assert( entry_stride > 0 );
 
+    // the sequence to slot mapping is a modulo of the 16-bit sequence. that mapping stays
+    // continuous across the 65535 -> 0 wrap only when num_entries divides 65536, so round up
+    // to the next power of two. callers may pass any positive size and still get a window at
+    // least that large.
+
+    {
+        int rounded_num_entries = 1;
+        while ( rounded_num_entries < num_entries && rounded_num_entries <= INT_MAX / 2 )
+        {
+            rounded_num_entries <<= 1;
+        }
+        if ( rounded_num_entries >= num_entries )
+        {
+            num_entries = rounded_num_entries;
+        }
+    }
+
     if ( allocate_function == NULL )
     {
         allocate_function = reliable_default_allocate_function;
@@ -808,7 +825,7 @@ void reliable_endpoint_destroy( struct reliable_endpoint_t * endpoint )
     if ( endpoint->fragment_reassembly )
     {
         int i;
-        for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
+        for ( i = 0; i < endpoint->fragment_reassembly->num_entries; ++i )
         {
             struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) 
                 reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
@@ -1585,7 +1602,7 @@ void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint )
     }
 
     int i;
-    for ( i = 0; i < endpoint->config.fragment_reassembly_buffer_size; ++i )
+    for ( i = 0; i < endpoint->fragment_reassembly->num_entries; ++i )
     {
         struct reliable_fragment_reassembly_data_t * reassembly_data = (struct reliable_fragment_reassembly_data_t*) 
             reliable_sequence_buffer_at_index( endpoint->fragment_reassembly, i );
@@ -2598,6 +2615,140 @@ static void test_stale_packets()
     RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
 
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE] == 1 );
+
+    reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
+#define TEST_SEQUENCE_BUFFER_NON_POWER_OF_TWO_SIZE 255
+
+struct test_sequence_buffer_non_power_of_two_context_t
+{
+    struct reliable_endpoint_t * sender;
+    struct reliable_endpoint_t * receiver;
+    int deliver_from_receiver;
+    uint8_t packet_65535[64];
+    int packet_65535_bytes;
+    int num_delivered_65535;
+};
+
+static void test_sequence_buffer_non_power_of_two_transmit_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    struct test_sequence_buffer_non_power_of_two_context_t * context = (struct test_sequence_buffer_non_power_of_two_context_t*) _context;
+
+    if ( id == 0 )
+    {
+        if ( sequence == 65535 )
+        {
+            reliable_assert( packet_bytes <= (int) sizeof( context->packet_65535 ) );
+            memcpy( context->packet_65535, packet_data, packet_bytes );
+            context->packet_65535_bytes = packet_bytes;
+        }
+
+        reliable_endpoint_receive_packet( context->receiver, packet_data, packet_bytes );
+    }
+    else if ( context->deliver_from_receiver )
+    {
+        reliable_endpoint_receive_packet( context->sender, packet_data, packet_bytes );
+    }
+}
+
+static int test_sequence_buffer_non_power_of_two_process_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) id;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    struct test_sequence_buffer_non_power_of_two_context_t * context = (struct test_sequence_buffer_non_power_of_two_context_t*) _context;
+
+    if ( sequence == 65535 )
+    {
+        context->num_delivered_65535++;
+    }
+
+    return 1;
+}
+
+static void test_sequence_buffer_non_power_of_two_size()
+{
+    double time = 100.0;
+
+    struct test_sequence_buffer_non_power_of_two_context_t context;
+    memset( &context, 0, sizeof( context ) );
+
+    struct reliable_config_t sender_config;
+    struct reliable_config_t receiver_config;
+
+    reliable_default_config( &sender_config );
+    reliable_default_config( &receiver_config );
+
+    reliable_copy_string( sender_config.name, "sender", sizeof( sender_config.name ) );
+    sender_config.context = &context;
+    sender_config.id = 0;
+    sender_config.sent_packets_buffer_size = TEST_SEQUENCE_BUFFER_NON_POWER_OF_TWO_SIZE;
+    sender_config.received_packets_buffer_size = TEST_SEQUENCE_BUFFER_NON_POWER_OF_TWO_SIZE;
+    sender_config.transmit_packet_function = &test_sequence_buffer_non_power_of_two_transmit_packet_function;
+    sender_config.process_packet_function = &test_sequence_buffer_non_power_of_two_process_packet_function;
+
+    reliable_copy_string( receiver_config.name, "receiver", sizeof( receiver_config.name ) );
+    receiver_config.context = &context;
+    receiver_config.id = 1;
+    receiver_config.sent_packets_buffer_size = TEST_SEQUENCE_BUFFER_NON_POWER_OF_TWO_SIZE;
+    receiver_config.received_packets_buffer_size = TEST_SEQUENCE_BUFFER_NON_POWER_OF_TWO_SIZE;
+    receiver_config.transmit_packet_function = &test_sequence_buffer_non_power_of_two_transmit_packet_function;
+    receiver_config.process_packet_function = &test_sequence_buffer_non_power_of_two_process_packet_function;
+
+    context.sender = reliable_endpoint_create( &sender_config, time );
+    context.receiver = reliable_endpoint_create( &receiver_config, time );
+
+    check( context.sender );
+    check( context.receiver );
+
+    // drive the sender's sequence across the 65535 -> 0 boundary. the receiver's own packets
+    // are held back, so the ack for 65535 arrives after sequence 0 has been recorded.
+
+    int i;
+    for ( i = 0; i < 65537; ++i )
+    {
+        uint8_t packet[8];
+        memset( packet, 0, sizeof( packet ) );
+        reliable_endpoint_send_packet( context.sender, packet, sizeof( packet ) );
+    }
+
+    check( context.packet_65535_bytes > 0 );
+    check( context.num_delivered_65535 == 1 );
+
+    // let the receiver's traffic through. its ack covers 65535, which is still inside the
+    // send window and must be found and reported.
+
+    context.deliver_from_receiver = 1;
+
+    uint8_t packet[8];
+    memset( packet, 0, sizeof( packet ) );
+    reliable_endpoint_send_packet( context.receiver, packet, sizeof( packet ) );
+
+    int num_acks;
+    RELIABLE_CONST uint16_t * acks = reliable_endpoint_get_acks( context.sender, &num_acks );
+
+    int found_65535_ack = 0;
+    for ( i = 0; i < num_acks; ++i )
+    {
+        if ( acks[i] == 65535 )
+        {
+            found_65535_ack = 1;
+        }
+    }
+
+    check( found_65535_ack );
+
+    // replaying 65535 after 0 must be dropped as a duplicate, not delivered again
+
+    reliable_endpoint_receive_packet( context.receiver, context.packet_65535, context.packet_65535_bytes );
+
+    check( context.num_delivered_65535 == 1 );
+
+    RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE] == 1 );
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
@@ -4334,6 +4485,7 @@ void reliable_test()
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_duplicate_packets );
         RUN_TEST( test_stale_packets );
+        RUN_TEST( test_sequence_buffer_non_power_of_two_size );
         RUN_TEST( test_ack_buffer_overflow );
         RUN_TEST( test_packets );
         RUN_TEST( test_large_packets );
