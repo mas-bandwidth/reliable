@@ -23,6 +23,11 @@
 */
 
 #include "reliable.h"
+
+#if defined(RELIABLE_DEBUG) && !defined(EXIT_FAILURE)
+#error reliable.h must declare exit for reliable_assert in debug builds
+#endif
+
 #include <stdlib.h>
 #include <memory.h>
 #include <stdio.h>
