@@ -135,6 +135,12 @@ RELIABLE_EXPORT int reliable_init(void);
 
 RELIABLE_EXPORT void reliable_term(void);
 
+// both peers must use the same fragment_size and a compatible max_fragments: each
+// receiver must accept the number of fragments its peer can send.
+// sent_packets_buffer_size and received_packets_buffer_size must be at least 4 for bandwidth statistics
+// (the sample count is buffer_size / 2 and needs two distinct packet times).
+// size 1 also gives a zero packet loss estimate because there are no sent samples.
+
 struct reliable_config_t
 {
     char name[256];                                                             // name of the endpoint. used in log output
@@ -154,6 +160,8 @@ struct reliable_config_t
     float bandwidth_smoothing_factor;                                           // exponential smoothing factor for bandwidth
     int packet_header_size;                                                     // assumed network header overhead per-packet, used only for bandwidth stats. 28 = IPv4 + UDP
     void (*transmit_packet_function)(void*,uint64_t,uint16_t,uint8_t*,int);     // called to send a packet: (context, id, sequence, packet_data, packet_bytes). must not send packets on the same endpoint
+    // acks carried by a rejected packet are discarded. packets sent from inside this
+    // callback carry ack bits that do not yet include the packet being processed.
     int (*process_packet_function)(void*,uint64_t,uint16_t,uint8_t*,int);       // called when a packet is received: (context, id, sequence, packet_data, packet_bytes). return 1 to accept and ack the packet, 0 to reject it (rejected packets are not acked and may be processed again if they arrive again)
     void * allocator_context;                                                   // passed to the allocate and free functions
     void * (*allocate_function)(void*,size_t);                                  // custom allocator. NULL = malloc
@@ -180,8 +188,10 @@ struct reliable_config_t
 //                                   a reassembled packet it points into an internal buffer
 //                                   that the endpoint may free as soon as you return. copy the
 //                                   bytes if you need them after you return. it is yours to
-//                                   read, not to free: reliable_endpoint_free_packet is for
-//                                   memory you allocated with the endpoint's allocator.
+//                                   read, not to free: the library never hands out caller-owned
+//                                   allocated packets. reliable_endpoint_free_packet is retained
+//                                   for API compatibility, for memory you allocated with the
+//                                   endpoint's allocator.
 //
 //   allocate_function, free_function
 //                                   called for every allocation the endpoint makes, including
@@ -221,7 +231,8 @@ RELIABLE_EXPORT void reliable_endpoint_send_packet( struct reliable_endpoint_t *
 
 RELIABLE_EXPORT void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes );
 
-// frees a packet using the endpoint's allocator
+// frees a packet using the endpoint's allocator. retained for API compatibility:
+// the library never hands out caller-owned allocated packets. do not free callback data
 
 RELIABLE_EXPORT void reliable_endpoint_free_packet( struct reliable_endpoint_t * endpoint, void * packet );
 
@@ -242,7 +253,8 @@ RELIABLE_EXPORT void reliable_endpoint_clear_acks( struct reliable_endpoint_t * 
 
 RELIABLE_EXPORT void reliable_endpoint_reset( struct reliable_endpoint_t * endpoint );
 
-// updates rtt, jitter, packet loss and bandwidth stats. call once per-frame with the current time
+// updates rtt, jitter, packet loss and bandwidth stats. call once per-frame with the current time.
+// time must be monotonically non-decreasing, starting with the time passed to create
 
 RELIABLE_EXPORT void reliable_endpoint_update( struct reliable_endpoint_t * endpoint, double time );
 
@@ -263,6 +275,13 @@ RELIABLE_EXPORT float reliable_endpoint_jitter_max_vs_min_rtt( struct reliable_e
 RELIABLE_EXPORT float reliable_endpoint_jitter_stddev_vs_avg_rtt( struct reliable_endpoint_t * endpoint );
 
 RELIABLE_EXPORT float reliable_endpoint_packet_loss( struct reliable_endpoint_t * endpoint );
+
+// sent bandwidth counts packet_header_size + payload bytes once per send, even for fragmented packets.
+// acked bandwidth uses the same byte count for acknowledged sent packets.
+// received bandwidth counts packet_header_size + accepted packet bytes, including reliable's wire header
+// (fragmented packets are counted once after reassembly, not once per fragment).
+// estimates sample packet history and do not decay to zero when traffic stops; update continues
+// smoothing toward the estimate from the unchanged history until new packets advance the window
 
 RELIABLE_EXPORT void reliable_endpoint_bandwidth( struct reliable_endpoint_t * endpoint, float * sent_bandwidth_kbps, float * received_bandwidth_kbps, float * acked_bandwidth_kpbs );
 
