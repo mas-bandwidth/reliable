@@ -1292,7 +1292,12 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 {
     reliable_assert( endpoint );
     reliable_assert( packet_data );
-    reliable_assert( packet_bytes > 0 );
+
+    if ( packet_bytes <= 0 )
+    {
+        endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID]++;
+        return;
+    }
 
     if ( (int64_t) packet_bytes > (int64_t) endpoint->config.max_packet_size + RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES )
     {
@@ -2999,6 +3004,38 @@ static void test_stale_packets()
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE] == 1 );
 
     reliable_endpoint_destroy( context.sender );
+    reliable_endpoint_destroy( context.receiver );
+}
+
+static void test_empty_packet_rejected()
+{
+    double time = 100.0;
+
+    struct test_context_t context;
+    test_default_context( &context );
+
+    struct reliable_config_t config;
+    reliable_default_config( &config );
+
+    reliable_copy_string( config.name, "receiver", sizeof( config.name ) );
+    config.context = &context;
+    config.id = 1;
+    config.transmit_packet_function = &test_transmit_packet_function;
+    config.process_packet_function = &test_process_packet_function;
+
+    context.receiver = reliable_endpoint_create( &config, time );
+    check( context.receiver );
+
+    uint8_t packet_data[1] = { 0 };
+
+    reliable_endpoint_receive_packet( context.receiver, packet_data, 0 );
+
+    RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( context.receiver );
+
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID] == 1 );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 0 );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED] == 0 );
+
     reliable_endpoint_destroy( context.receiver );
 }
 
@@ -5097,6 +5134,7 @@ void reliable_test()
         RUN_TEST( test_acks_packet_loss );
         RUN_TEST( test_duplicate_packets );
         RUN_TEST( test_stale_packets );
+        RUN_TEST( test_empty_packet_rejected );
         RUN_TEST( test_sequence_buffer_non_power_of_two_size );
         RUN_TEST( test_ack_buffer_overflow );
         RUN_TEST( test_packets );
