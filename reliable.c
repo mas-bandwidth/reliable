@@ -3941,10 +3941,44 @@ static void test_endpoint_reset()
     }
 }
 
+// one step of a steady exchange: the sender sends at time, and the receiver replies reply_delay
+// later, so the reply acks the sender's packet with a round trip of exactly reply_delay
+
+#define TEST_EXCHANGE_MAX_PAYLOAD 256
+
+static void test_exchange_step( struct test_context_t * context, double time, double reply_delay, int drop_send, int payload_bytes )
+{
+    uint8_t packet[TEST_EXCHANGE_MAX_PAYLOAD];
+    memset( packet, 0, sizeof( packet ) );
+
+    reliable_assert( payload_bytes > 0 && payload_bytes <= TEST_EXCHANGE_MAX_PAYLOAD );
+
+    reliable_endpoint_update( context->sender, time );
+    reliable_endpoint_update( context->receiver, time );
+
+    context->drop = drop_send;
+    reliable_endpoint_send_packet( context->sender, packet, payload_bytes );
+    context->drop = 0;
+
+    reliable_endpoint_update( context->sender, time + reply_delay );
+    reliable_endpoint_update( context->receiver, time + reply_delay );
+
+    reliable_endpoint_send_packet( context->receiver, packet, payload_bytes );
+
+    reliable_endpoint_clear_acks( context->sender );
+    reliable_endpoint_clear_acks( context->receiver );
+}
+
+static int test_close( float value, float expected, float tolerance )
+{
+    return fabs( value - expected ) <= tolerance;
+}
+
 static void test_rtt()
 {
-    double time = 100.0;
-    double delta_time = 0.01;
+    double time = 1000.0;
+    const double delta_time = 0.25;
+    const double reply_delay = 0.0625;
 
     struct test_context_t context;
     test_default_context(&context);
@@ -3971,26 +4005,29 @@ static void test_rtt()
     int i;
     for (i = 0; i < 1000; ++i)
     {
-        uint8_t dummy_packet[8];
-        memset(dummy_packet, 0, sizeof(dummy_packet));
-
-        reliable_endpoint_send_packet(context.sender, dummy_packet, sizeof(dummy_packet));
-        reliable_endpoint_send_packet(context.receiver, dummy_packet, sizeof(dummy_packet));
-
-        reliable_endpoint_update(context.sender, time);
-        reliable_endpoint_update(context.receiver, time);
-
+        test_exchange_step( &context, time, reply_delay, 0, 8 );
         time += delta_time;
     }
 
-    float rtt = reliable_endpoint_rtt(context.sender);
-    float rtt_min = reliable_endpoint_rtt_min(context.sender);
-    float rtt_max = reliable_endpoint_rtt_max(context.sender);
-    float rtt_avg = reliable_endpoint_rtt_avg(context.sender);
+    reliable_endpoint_update( context.sender, time );
+    reliable_endpoint_update( context.receiver, time );
 
-    check(rtt == rtt && rtt >= 0); // Check rtt is finite and non-negative
-    check(rtt_min >= 0 && rtt_min <= rtt_avg && rtt_avg <= rtt_max);
-    check(rtt_max < 1000.0); // Assume RTT is in milliseconds
+    // the sender's packets are acked reply_delay after they are sent: 62.5 ms
+
+    check( test_close( reliable_endpoint_rtt( context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_min( context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_max( context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_avg( context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_avg_vs_min_rtt( context.sender ), 0.0f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_max_vs_min_rtt( context.sender ), 0.0f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_stddev_vs_avg_rtt( context.sender ), 0.0f, 0.001f ) );
+
+    // the receiver's replies are acked by the sender's next packet: 250 - 62.5 = 187.5 ms
+
+    check( test_close( reliable_endpoint_rtt( context.receiver ), 187.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_min( context.receiver ), 187.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_max( context.receiver ), 187.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_avg( context.receiver ), 187.5f, 0.001f ) );
 
     reliable_endpoint_destroy(context.sender);
     reliable_endpoint_destroy(context.receiver);
@@ -4158,6 +4195,157 @@ static void test_endpoint_reset_clears_stats()
     check( reliable_endpoint_jitter_avg_vs_min_rtt( pair.context.sender ) == 0.0f );
     check( reliable_endpoint_jitter_max_vs_min_rtt( pair.context.sender ) == 0.0f );
     check( reliable_endpoint_jitter_stddev_vs_avg_rtt( pair.context.sender ) == 0.0f );
+
+    test_pair_destroy( &pair );
+}
+
+// a known fraction of the sender's packets is dropped, and the loss estimate converges to it
+
+static void test_packet_loss_estimate()
+{
+    double time = 1000.0;
+    const double delta_time = 0.25;
+
+    struct test_pair_t pair;
+    test_pair_configs( &pair );
+    test_pair_create( &pair, time );
+
+    // one packet in four is dropped. the loss window covers 128 consecutive sequence numbers,
+    // so it always holds exactly 32 dropped packets: 25%
+
+    int i;
+    for ( i = 0; i < 1000; ++i )
+    {
+        test_exchange_step( &pair.context, time, 0.0625, ( i % 4 ) == 0, 100 );
+        time += delta_time;
+    }
+
+    reliable_endpoint_update( pair.context.sender, time );
+    reliable_endpoint_update( pair.context.receiver, time );
+
+    check( test_close( reliable_endpoint_packet_loss( pair.context.sender ), 25.0f, 0.01f ) );
+
+    // nothing the receiver sent was dropped
+
+    check( test_close( reliable_endpoint_packet_loss( pair.context.receiver ), 0.0f, 0.01f ) );
+
+    // only three packets in four are acked, so acked bandwidth is about three quarters of sent
+    // bandwidth (the acked packets at the edges of the window move the span by up to two steps)
+
+    float sent_bandwidth, received_bandwidth, acked_bandwidth;
+    reliable_endpoint_bandwidth( pair.context.sender, &sent_bandwidth, &received_bandwidth, &acked_bandwidth );
+    check( sent_bandwidth > 0.0f );
+    check( acked_bandwidth >= sent_bandwidth * 0.74f );
+    check( acked_bandwidth <= sent_bandwidth * 0.77f );
+
+    test_pair_destroy( &pair );
+}
+
+// replies come back after two different delays, so the rtt history has a known spread
+
+static void test_jitter_estimate()
+{
+    double time = 1000.0;
+    const double delta_time = 0.25;
+
+    struct test_pair_t pair;
+    test_pair_configs( &pair );
+    test_pair_create( &pair, time );
+
+    // fewer steps than the rtt history holds, so every sample is still in it: half are 62.5 ms
+    // and half are 187.5 ms
+
+    int i;
+    for ( i = 0; i < 200; ++i )
+    {
+        const double reply_delay = ( i % 2 ) ? 0.1875 : 0.0625;
+        test_exchange_step( &pair.context, time, reply_delay, 0, 8 );
+        time += delta_time;
+    }
+
+    reliable_endpoint_update( pair.context.sender, time );
+
+    check( test_close( reliable_endpoint_rtt_min( pair.context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_max( pair.context.sender ), 187.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_rtt_avg( pair.context.sender ), 125.0f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_avg_vs_min_rtt( pair.context.sender ), 62.5f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_max_vs_min_rtt( pair.context.sender ), 125.0f, 0.001f ) );
+    check( test_close( reliable_endpoint_jitter_stddev_vs_avg_rtt( pair.context.sender ), 62.5f, 0.001f ) );
+
+    const float rtt = reliable_endpoint_rtt( pair.context.sender );
+    check( rtt >= 62.5f && rtt <= 187.5f );
+
+    test_pair_destroy( &pair );
+}
+
+// the bandwidth estimates match bytes * 8 / 1000 / seconds over the sampled window
+
+static int test_bandwidth_reply_bytes_min = 0;
+static int test_bandwidth_reply_bytes_max = 0;
+
+static void test_bandwidth_transmit_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    if ( id == 1 )
+    {
+        if ( test_bandwidth_reply_bytes_min == 0 || packet_bytes < test_bandwidth_reply_bytes_min )
+        {
+            test_bandwidth_reply_bytes_min = packet_bytes;
+        }
+        if ( packet_bytes > test_bandwidth_reply_bytes_max )
+        {
+            test_bandwidth_reply_bytes_max = packet_bytes;
+        }
+    }
+
+    test_transmit_packet_function( context, id, sequence, packet_data, packet_bytes );
+}
+
+static void test_bandwidth_estimate()
+{
+    double time = 1000.0;
+    const double delta_time = 0.25;
+    const int payload_bytes = 100;
+
+    struct test_pair_t pair;
+    test_pair_configs( &pair );
+    pair.receiver_config.transmit_packet_function = &test_bandwidth_transmit_packet_function;
+    test_pair_create( &pair, time );
+
+    int i;
+    for ( i = 0; i < 1000; ++i )
+    {
+        // measure the size of the receiver's packets once the exchange is steady
+
+        if ( i == 500 )
+        {
+            test_bandwidth_reply_bytes_min = 0;
+            test_bandwidth_reply_bytes_max = 0;
+        }
+
+        test_exchange_step( &pair.context, time, 0.0625, 0, payload_bytes );
+        time += delta_time;
+    }
+
+    reliable_endpoint_update( pair.context.sender, time );
+
+    check( test_bandwidth_reply_bytes_min > 0 );
+    check( test_bandwidth_reply_bytes_min == test_bandwidth_reply_bytes_max );
+
+    // each window samples half the packets buffer: 128 packets, one step apart, so 127 steps
+
+    const int window_packets = pair.sender_config.sent_packets_buffer_size / 2;
+    const double window_seconds = ( window_packets - 1 ) * delta_time;
+    const int header_bytes = pair.sender_config.packet_header_size;
+
+    const float expected_sent = (float) ( window_packets * ( header_bytes + payload_bytes ) * 8.0 / 1000.0 / window_seconds );
+    const float expected_received = (float) ( window_packets * ( header_bytes + test_bandwidth_reply_bytes_min ) * 8.0 / 1000.0 / window_seconds );
+
+    float sent_bandwidth, received_bandwidth, acked_bandwidth;
+    reliable_endpoint_bandwidth( pair.context.sender, &sent_bandwidth, &received_bandwidth, &acked_bandwidth );
+
+    check( test_close( sent_bandwidth, expected_sent, expected_sent * 0.001f ) );
+    check( test_close( received_bandwidth, expected_received, expected_received * 0.001f ) );
+    check( test_close( acked_bandwidth, expected_sent, expected_sent * 0.001f ) );
 
     test_pair_destroy( &pair );
 }
@@ -4921,6 +5109,9 @@ void reliable_test()
         RUN_TEST( test_endpoint_reset );
         RUN_TEST( test_endpoint_reset_clears_stats );
         RUN_TEST( test_rtt_min_large );
+        RUN_TEST( test_packet_loss_estimate );
+        RUN_TEST( test_jitter_estimate );
+        RUN_TEST( test_bandwidth_estimate );
         RUN_TEST( test_endpoint_create_invalid_config );
         RUN_TEST( test_endpoint_create_allocation_failure );
         RUN_TEST( test_endpoint_name_terminated );
