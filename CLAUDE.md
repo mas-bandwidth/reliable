@@ -38,22 +38,23 @@ check." Plus Postel: "be conservative in what you send, permissive in what you r
   READ / off the wire     -> the library checks at runtime, for safety.
 DELIBERATELY ASSERT-ONLY, do NOT "fix" -- a future audit that finds these has found the
 contract, not a bug:
-  - reliable_copy_string( dest, source, 0 ) (reliable.c:1729). dest_size is size_t, so
-    `i < dest_size - 1` wraps to SIZE_MAX and writes until it finds a NUL. I proved this
-    under ASan (heap-buffer-overflow WRITE at reliable.c:1739). It is still caller
+  - reliable_copy_string( dest, source, 0 ) (`reliable_copy_string`). dest_size is size_t,
+    so `i < dest_size - 1` wraps to SIZE_MAX and writes until it finds a NUL. I proved this
+    under ASan (heap-buffer-overflow WRITE in the copy loop). It is still caller
     responsibility.
-  - reliable_endpoint_send_packet( ep, data, negative ) (reliable.c:762). The
-    > max_packet_size test at :768 is false for negatives, so it reaches the memcpy at
-    :802 and the int becomes a huge size_t. Proved under ASan (negative-size-param).
-    Note netcode's equivalent DOES range-check; that difference is not a defect here.
+  - reliable_endpoint_send_packet( ep, data, negative ) (`reliable_endpoint_send_packet`).
+    The > max_packet_size test is false for negatives, so it reaches the memcpy and the int
+    becomes a huge size_t. Proved under ASan (negative-size-param). Note netcode's
+    equivalent DOES range-check; that difference is not a defect here.
 THE RECEIVE PATH IS CLEAN AND UNUSUALLY WELL HARDENED -- two independent audits (Opus 5 and
-Fable 5) agree. read_fragment_header checks minimum length (:963), num_fragments >
-max_fragments (:982), fragment_id >= num_fragments (:988), fragment_bytes (:1038, :1044);
-reliable_store_fragment_data has an explicit pre-memcpy bounds test at :1089 with a comment
-naming the attacker case.
-WHY fragment_received[256] (reliable.c:472) CANNOT be overrun even though max_fragments is
-assert-only: fragment_id is read as a uint8_t at :979, so it is <= 255 by the WIRE TYPE
-regardless of any check or config value. Verified empirically, not just by reading -- a
+Fable 5) agree. `reliable_read_fragment_header` checks minimum length, num_fragments >
+max_fragments, fragment_id >= num_fragments and the fragment_bytes bounds;
+`reliable_store_fragment_data` has an explicit pre-memcpy bounds test that logs the
+offending size and drops the fragment.
+WHY fragment_received[256] (the array in `reliable_fragment_reassembly_data_t`) CANNOT be
+overrun even though max_fragments is assert-only: fragment_id is read as a uint8_t in
+`reliable_read_fragment_header`, so it is <= 255 by the WIRE TYPE regardless of any check
+or config value. Verified empirically, not just by reading -- a
 hostile-input harness under ASan+UBSan with -DNDEBUG hit that indexing site 24,384 times at
 a highest index of exactly 255.
 <!-- HOT:END -->
@@ -62,8 +63,8 @@ a highest index of exactly 255.
 
 ## What this is
 
-**reliable** is a single-file C library (`reliable.c` / `reliable.h`, ~2,600 lines
-including embedded tests) implementing packet acknowledgement, fragmentation/reassembly,
+**reliable** is a C library (`reliable.c`, ~5,100 lines including embedded tests;
+`reliable.h`, ~300 lines) implementing packet acknowledgement, fragmentation/reassembly,
 and RTT/jitter/packet-loss/bandwidth estimation over UDP. It is transport-agnostic: the
 caller supplies `transmit_packet_function` / `process_packet_function` callbacks. The
 other files (`test.cpp`, `example.c`, `soak.c`, `stats.c`, `fuzz.c`) are thin harnesses
@@ -101,8 +102,8 @@ compact and well thought out (variable-length ack encoding via prefix byte); the
 sequence-buffer data structure is the right tool and is implemented correctly, including
 16-bit wraparound. The recent security-audit pass shows: header parsing bounds-checks
 every read, fragment reassembly validates sizes before copying
-(`reliable_store_fragment_data`, reliable.c:1071-1082), and the fuzzer exercises the
-real send→fragment→corrupt→reassemble path rather than just throwing random bytes at
+(`reliable_store_fragment_data`, which bounds-checks before the memcpy), and the fuzzer
+exercises the real send→fragment→corrupt→reassemble path rather than just throwing random bytes at
 `receive`. I compiled with `-Wall -Wextra` (clean), ran the full test suite (passes),
 and ran 20k fuzz iterations under ASan+UBSan (clean).
 
@@ -136,13 +137,17 @@ None currently.
   Debug+Release build + test suite + bounded fuzz on Windows x64 / macOS arm64 /
   Ubuntu, plus an ASan+UBSan job on Ubuntu.
 - **Copy-paste bug in a test** — `test_acks_packet_loss` fetched the *sender's* acks
-  twice and never checked the receiver's; reliable.c:2155 now checks `context.receiver`.
+  twice and never checked the receiver's; `test_acks_packet_loss` now checks
+  `context.receiver`.
 - **README sample code bugs** — the ack loop indexed `acks[j]` with loop variable `i`,
   and the stats `printf` was missing its opening quote.
-- **Six allocation results lacked the debug assert** that the rest of the code applies
-  (sequence buffer struct, endpoint acks + rtt history buffers, both send-path scratch
-  buffers, and the fragment reassembly buffer). All now have `reliable_assert`, keeping
-  release behavior untouched per the design contract.
+- **Allocation results are checked at runtime, not just asserted.** Every allocation in
+  `reliable_sequence_buffer_create` (the struct and its two arrays) and
+  `reliable_endpoint_create` (the endpoint, acks, RTT history, transmit scratch buffer and
+  the three sequence buffers) is tested for NULL; a failure frees whatever was already
+  taken and returns NULL. The size arithmetic behind each buffer is checked first with
+  `reliable_checked_size`. This is the fallible-in-every-build path the design contract
+  promises, not a debug-only assert.
 - **Dated endianness detection** — unlisted architectures (e.g. RISC-V) fell through to
   `RELIABLE_BIG_ENDIAN`. Detection now prefers the compiler's `__BYTE_ORDER__` macro
   (GCC/Clang), keeping the old architecture list as the MSVC fallback. Runtime-verified
