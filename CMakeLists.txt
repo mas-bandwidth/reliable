@@ -146,7 +146,7 @@ if(RELIABLE_BUILD_TESTS)
 
     add_test(NAME test COMMAND reliable_test)
     add_test(NAME fuzz COMMAND fuzz 20000 12345)
-    add_test(NAME soak COMMAND soak 8192 --quiet)
+    add_test(NAME soak COMMAND soak 70000 --quiet)
     add_test(NAME fuzz_target COMMAND fuzz_target_standalone 500 12345)
 
     # the library must export exactly the RELIABLE_EXPORT surface of reliable.h and nothing
