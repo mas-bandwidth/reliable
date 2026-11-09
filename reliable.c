@@ -1239,7 +1239,7 @@ static int reliable_read_fragment_header( char * name,
     return (int) ( p - packet_data );
 }
 
-static void reliable_store_fragment_data( struct reliable_fragment_reassembly_data_t * reassembly_data, 
+static int reliable_store_fragment_data( struct reliable_fragment_reassembly_data_t * reassembly_data, 
                                    uint16_t sequence, 
                                    uint16_t ack, 
                                    uint32_t ack_bits, 
@@ -1268,7 +1268,7 @@ static void reliable_store_fragment_data( struct reliable_fragment_reassembly_da
     {
         const int64_t packet_bytes = (int64_t) ( reassembly_data->num_fragments_total - 1 ) * fragment_size + fragment_bytes;
         if ( packet_bytes < 0 || packet_bytes > INT_MAX )
-            return;
+            return 0;
         reassembly_data->packet_bytes = (int) packet_bytes;
     }
 
@@ -1282,10 +1282,15 @@ static void reliable_store_fragment_data( struct reliable_fragment_reassembly_da
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG,
             "[reliable] invalid fragment size %d (would write past %zu/%zu)\n",
             fragment_bytes, end_offset, max_size );
-        return;
+        return 0;
     }
     
     memcpy( reassembly_data->packet_data + offset, fragment_data, fragment_bytes );
+
+    reassembly_data->num_fragments_received++;
+    reassembly_data->fragment_received[fragment_id] = 1;
+
+    return 1;
 }
 
 void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, uint8_t * packet_data, int packet_bytes )
@@ -1522,17 +1527,20 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] received fragment %d of packet %d (%d/%d)\n", 
             endpoint->config.name, fragment_id, sequence, reassembly_data->num_fragments_received+1, num_fragments );
 
-        reassembly_data->num_fragments_received++;
-        reassembly_data->fragment_received[fragment_id] = 1;
-
-        reliable_store_fragment_data( reassembly_data, 
-                                      sequence, 
-                                      ack, 
-                                      ack_bits, 
-                                      fragment_id, 
-                                      endpoint->config.fragment_size, 
-                                      packet_data + fragment_header_bytes, 
-                                      packet_bytes - fragment_header_bytes );
+        if ( !reliable_store_fragment_data( reassembly_data, 
+                                            sequence, 
+                                            ack, 
+                                            ack_bits, 
+                                            fragment_id, 
+                                            endpoint->config.fragment_size, 
+                                            packet_data + fragment_header_bytes, 
+                                            packet_bytes - fragment_header_bytes ) )
+        {
+            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring fragment %d of packet %d. could not store fragment data\n", 
+                endpoint->config.name, fragment_id, sequence );
+            endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
+            return;
+        }
 
         if ( reassembly_data->num_fragments_received == reassembly_data->num_fragments_total )
         {
