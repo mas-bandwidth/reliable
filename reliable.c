@@ -2260,6 +2260,10 @@ static int test_process_packet_function( void * _context, uint64_t id, uint16_t 
 
 #define TEST_ACKS_NUM_ITERATIONS 256
 
+// the most recent packets may still be waiting for an ack when the loop ends, so leave out one ack window (32 packets)
+
+#define TEST_ACKS_NUM_CHECKED ( TEST_ACKS_NUM_ITERATIONS - 32 )
+
 static void test_acks()
 {
     double time = 100.0;
@@ -2309,12 +2313,10 @@ static void test_acks()
     RELIABLE_CONST uint16_t * sender_acks = reliable_endpoint_get_acks( context.sender, &sender_num_acks );
     for ( i = 0; i < sender_num_acks; ++i )
     {
-        if ( sender_acks[i] < TEST_ACKS_NUM_ITERATIONS )
-        {
-            sender_acked_packet[sender_acks[i]] = 1;
-        }
+        check( sender_acks[i] < TEST_ACKS_NUM_ITERATIONS );
+        sender_acked_packet[sender_acks[i]] = 1;
     }
-    for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
+    for ( i = 0; i < TEST_ACKS_NUM_CHECKED; ++i )
     {
         check( sender_acked_packet[i] == 1 );
     }
@@ -2325,10 +2327,10 @@ static void test_acks()
     RELIABLE_CONST uint16_t * receiver_acks = reliable_endpoint_get_acks( context.receiver, &receiver_num_acks );
     for ( i = 0; i < receiver_num_acks; ++i )
     {
-        if ( receiver_acks[i] < TEST_ACKS_NUM_ITERATIONS )
-            receiver_acked_packet[receiver_acks[i]] = 1;
+        check( receiver_acks[i] < TEST_ACKS_NUM_ITERATIONS );
+        receiver_acked_packet[receiver_acks[i]] = 1;
     }
-    for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
+    for ( i = 0; i < TEST_ACKS_NUM_CHECKED; ++i )
     {
         check( receiver_acked_packet[i] == 1 );
     }
@@ -2388,12 +2390,10 @@ static void test_acks_packet_loss()
     RELIABLE_CONST uint16_t * sender_acks = reliable_endpoint_get_acks( context.sender, &sender_num_acks );
     for ( i = 0; i < sender_num_acks; ++i )
     {
-        if ( sender_acks[i] < TEST_ACKS_NUM_ITERATIONS )
-        {
-            sender_acked_packet[sender_acks[i]] = 1;
-        }
+        check( sender_acks[i] < TEST_ACKS_NUM_ITERATIONS );
+        sender_acked_packet[sender_acks[i]] = 1;
     }
-    for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
+    for ( i = 0; i < TEST_ACKS_NUM_CHECKED; ++i )
     {
         check( sender_acked_packet[i] == (i+1) % 2 );
     }
@@ -2404,12 +2404,10 @@ static void test_acks_packet_loss()
     RELIABLE_CONST uint16_t * receiver_acks = reliable_endpoint_get_acks( context.receiver, &receiver_num_acks );
     for ( i = 0; i < receiver_num_acks; ++i )
     {
-        if ( receiver_acks[i] < TEST_ACKS_NUM_ITERATIONS )
-        {
-            receiver_acked_packet[receiver_acks[i]] = 1;
-        }
+        check( receiver_acks[i] < TEST_ACKS_NUM_ITERATIONS );
+        receiver_acked_packet[receiver_acks[i]] = 1;
     }
-    for ( i = 0; i < TEST_ACKS_NUM_ITERATIONS / 2; ++i )
+    for ( i = 0; i < TEST_ACKS_NUM_CHECKED; ++i )
     {
         check( receiver_acked_packet[i] == (i+1) % 2 );
     }
@@ -2521,7 +2519,7 @@ static void test_stale_packets_transmit_packet_function( void * _context, uint64
     {
         if ( sequence == 0 && test_stale_packets_first_packet_bytes == 0 )
         {
-            reliable_assert( packet_bytes <= (int) sizeof( test_stale_packets_first_packet ) );
+            check( packet_bytes <= (int) sizeof( test_stale_packets_first_packet ) );
             memcpy( test_stale_packets_first_packet, packet_data, packet_bytes );
             test_stale_packets_first_packet_bytes = packet_bytes;
         }
@@ -2683,8 +2681,8 @@ static void test_ack_buffer_overflow()
 
 static void generate_packet_data_with_size( uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    reliable_assert( packet_bytes >= 2 );
-    reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    check( packet_bytes >= 2 );
+    check( packet_bytes <= TEST_MAX_PACKET_BYTES );
 
     packet_data[0] = (uint8_t) ( sequence & 0xFF );
     packet_data[1] = (uint8_t) ( (sequence>>8) & 0xFF );
@@ -2704,8 +2702,8 @@ static int generate_packet_data( uint16_t sequence, uint8_t * packet_data )
 
 static void validate_packet_data( uint8_t * packet_data, int packet_bytes )
 {
-    reliable_assert( packet_bytes >= 2 );
-    reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    check( packet_bytes >= 2 );
+    check( packet_bytes <= TEST_MAX_PACKET_BYTES );
     uint16_t sequence = 0;
     sequence |= (uint16_t) packet_data[0];
     sequence |= ( (uint16_t) packet_data[1] ) << 8;
@@ -2717,17 +2715,21 @@ static void validate_packet_data( uint8_t * packet_data, int packet_bytes )
     }
 }
 
+static int test_process_packet_function_validate_num_processed[2];
+
 static int test_process_packet_function_validate( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    reliable_assert( packet_data );
-    reliable_assert( packet_bytes > 0 );
-    reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    check( packet_data );
+    check( packet_bytes > 0 );
+    check( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    check( id < 2 );
 
     (void) context;
-    (void) id;
     (void) sequence;
 
     validate_packet_data( packet_data, packet_bytes );
+
+    test_process_packet_function_validate_num_processed[id]++;
 
     return 1;
 }
@@ -2735,8 +2737,8 @@ static int test_process_packet_function_validate( void * context, uint64_t id, u
 static int generate_packet_data_large( uint8_t* packet_data )
 {
     int data_bytes = TEST_MAX_PACKET_BYTES - 2;
-    reliable_assert( data_bytes >= 2) ;
-    reliable_assert( data_bytes <= (1 << 16) );
+    check( data_bytes >= 2 );
+    check( data_bytes <= (1 << 16) );
 
     packet_data[0] = (uint8_t) (data_bytes & 0xFF);
     packet_data[1] = (uint8_t) ( (data_bytes >> 8) & 0xFF );
@@ -2750,9 +2752,9 @@ static int generate_packet_data_large( uint8_t* packet_data )
 
 static int test_process_packet_function_validate_large( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
-    reliable_assert( packet_data );
-    reliable_assert( packet_bytes >= 2 );
-    reliable_assert( packet_bytes <= TEST_MAX_PACKET_BYTES );
+    check( packet_data );
+    check( packet_bytes >= 2 );
+    check( packet_bytes <= TEST_MAX_PACKET_BYTES );
 
     (void) context;
     (void) id;
@@ -2770,6 +2772,8 @@ static int test_process_packet_function_validate_large( void * context, uint64_t
 
     return 1;
 }
+
+#define TEST_PACKETS_NUM_ITERATIONS 16
 
 void test_packets()
 {
@@ -2802,10 +2806,12 @@ void test_packets()
     context.sender = reliable_endpoint_create( &sender_config, time );
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
+    memset( test_process_packet_function_validate_num_processed, 0, sizeof( test_process_packet_function_validate_num_processed ) );
+
     double delta_time = 0.1;
 
     int i;
-    for ( i = 0; i < 16; ++i )
+    for ( i = 0; i < TEST_PACKETS_NUM_ITERATIONS; ++i )
     {
         {
             uint8_t packet_data[TEST_MAX_PACKET_BYTES];
@@ -2816,9 +2822,9 @@ void test_packets()
 
         {
             uint8_t packet_data[TEST_MAX_PACKET_BYTES];
-            uint16_t sequence = reliable_endpoint_next_packet_sequence( context.sender );
+            uint16_t sequence = reliable_endpoint_next_packet_sequence( context.receiver );
             int packet_bytes = generate_packet_data( sequence, packet_data );
-            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+            reliable_endpoint_send_packet( context.receiver, packet_data, packet_bytes );
         }
 
         reliable_endpoint_update( context.sender, time );
@@ -2829,6 +2835,9 @@ void test_packets()
 
         time += delta_time;
     }
+
+    check( test_process_packet_function_validate_num_processed[0] == TEST_PACKETS_NUM_ITERATIONS );
+    check( test_process_packet_function_validate_num_processed[1] == TEST_PACKETS_NUM_ITERATIONS );
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
@@ -2973,7 +2982,7 @@ void * test_tracking_allocate_function( void * context, size_t bytes )
         }
     }
 
-    reliable_assert(tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations));
+    check( tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations) );
     tracking_context->active_allocations[tracking_index] = allocation;
     return allocation;
 }
@@ -2990,7 +2999,7 @@ void test_tracking_free_function( void * context, void * pointer )
         }
     }
 
-    reliable_assert( tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations) );
+    check( tracking_index < (int) ARRAY_LENGTH(tracking_context->active_allocations) );
     tracking_context->active_allocations[tracking_index] = NULL;
     free( pointer );
 }
@@ -3042,7 +3051,7 @@ void test_fragment_cleanup()
     };
 
     // Make sure we're sending more than receiver_config.fragment_reassembly_buffer_size packets, so the buffer wraps around.
-    reliable_assert( (int) ARRAY_LENGTH( packet_sizes ) > receiver_config.fragment_reassembly_buffer_size );
+    check( (int) ARRAY_LENGTH( packet_sizes ) > receiver_config.fragment_reassembly_buffer_size );
 
     int i;
     for ( i = 0; i < (int) ARRAY_LENGTH( packet_sizes ); ++i )
