@@ -52,6 +52,10 @@
 #error Can only define one of debug & release
 #endif
 
+#ifdef RELIABLE_DEBUG
+#include <stdlib.h>
+#endif
+
 #if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   #define RELIABLE_LITTLE_ENDIAN 1
 #elif defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
