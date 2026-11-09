@@ -1413,9 +1413,12 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
                             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED]++;
                             sent_packet_data->acked = 1;
 
-                            const float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
+                            float rtt = (float) ( endpoint->time - sent_packet_data->time ) * 1000.0f;
 
-                            reliable_assert( rtt >= 0.0 );
+                            if ( rtt < 0.0f )
+                            {
+                                rtt = 0.0f;
+                            }
 
                             int index = ack_sequence % endpoint->config.rtt_history_size;
 
@@ -4185,6 +4188,42 @@ static void test_rtt_min_large()
     test_pair_destroy( &pair );
 }
 
+// a clock that steps backwards between a send and its ack gives an rtt sample of zero
+
+static void test_rtt_time_backwards()
+{
+    double time = 1010.0;
+
+    struct test_pair_t pair;
+    test_pair_configs( &pair );
+    test_pair_create( &pair, time );
+
+    uint8_t packet[8];
+    memset( packet, 0, sizeof( packet ) );
+
+    reliable_endpoint_send_packet( pair.context.sender, packet, sizeof( packet ) );
+
+    time = 1009.0;
+
+    reliable_endpoint_update( pair.context.sender, time );
+    reliable_endpoint_update( pair.context.receiver, time );
+
+    reliable_endpoint_send_packet( pair.context.receiver, packet, sizeof( packet ) );
+
+    reliable_endpoint_update( pair.context.sender, time );
+
+    int num_acks;
+    reliable_endpoint_get_acks( pair.context.sender, &num_acks );
+    check( num_acks == 1 );
+
+    check( reliable_endpoint_rtt( pair.context.sender ) == 0.0f );
+    check( reliable_endpoint_rtt_min( pair.context.sender ) == 0.0f );
+    check( reliable_endpoint_rtt_max( pair.context.sender ) == 0.0f );
+    check( reliable_endpoint_rtt_avg( pair.context.sender ) == 0.0f );
+
+    test_pair_destroy( &pair );
+}
+
 // RL-03: reset clears every field a getter can return, the rtt history included
 
 static void test_endpoint_reset_clears_stats()
@@ -5414,6 +5453,7 @@ void reliable_test()
         RUN_TEST( test_endpoint_reset );
         RUN_TEST( test_endpoint_reset_clears_stats );
         RUN_TEST( test_rtt_min_large );
+        RUN_TEST( test_rtt_time_backwards );
         RUN_TEST( test_packet_loss_estimate );
         RUN_TEST( test_jitter_estimate );
         RUN_TEST( test_bandwidth_estimate );
