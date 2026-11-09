@@ -1031,7 +1031,7 @@ void reliable_endpoint_send_packet( struct reliable_endpoint_t * endpoint, uint8
             }
 
             int bytes_to_copy = endpoint->config.fragment_size;
-            if ( q + bytes_to_copy > end )
+            if ( bytes_to_copy > (int) ( end - q ) )
             {
                 bytes_to_copy = (int) ( end - q );
             }
@@ -4856,6 +4856,8 @@ static void test_fragment_counts()
 
     // one fragment: above the threshold by a single byte
     test_fragment_case( 512, 16, 513, 2 );
+    test_fragment_case( 512, 16, 1023, 2 );
+    test_fragment_case( 512, 16, 1025, 3 );
     test_fragment_case( 64, 256, 65, 2 );
 
     // 256 fragments, the maximum the wire format can express
