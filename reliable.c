@@ -1328,7 +1328,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         if ( packet_payload_bytes > endpoint->config.max_packet_size )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] packet too large to receive. packet is at %d bytes, maximum is %d\n",
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] packet too large to receive. packet is at %d bytes, maximum is %d\n",
                 endpoint->config.name, packet_payload_bytes, endpoint->config.max_packet_size );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_TOO_LARGE_TO_RECEIVE]++;
             return;
@@ -1416,7 +1416,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
         }
         else
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] process packet failed\n", endpoint->config.name );
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] process packet failed\n", endpoint->config.name );
         }
     }
     else
@@ -1467,7 +1467,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
             if ( !reassembly_data )
             {
-                reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. could not insert in reassembly buffer (stale)\n", endpoint->config.name );
+                reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. could not insert in reassembly buffer (stale)\n", endpoint->config.name );
                 endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
                 return;
             }
@@ -1506,7 +1506,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         if ( num_fragments != (int) reassembly_data->num_fragments_total )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring invalid fragment. fragment count mismatch. expected %d, got %d\n", 
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring invalid fragment. fragment count mismatch. expected %d, got %d\n", 
                 endpoint->config.name, (int) reassembly_data->num_fragments_total, num_fragments );
             endpoint->counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID]++;
             return;
@@ -1514,7 +1514,7 @@ void reliable_endpoint_receive_packet( struct reliable_endpoint_t * endpoint, ui
 
         if ( reassembly_data->fragment_received[fragment_id] )
         {
-            reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%s] ignoring fragment %d of packet %d. fragment already received\n", 
+            reliable_printf( RELIABLE_LOG_LEVEL_DEBUG, "[%s] ignoring fragment %d of packet %d. fragment already received\n", 
                 endpoint->config.name, fragment_id, sequence );
             return;
         }
@@ -4994,6 +4994,195 @@ static void test_truncated_packets()
     reliable_endpoint_destroy( receiver );
 }
 
+#define TEST_LOG_LEVEL_BUFFER_BYTES ( 256 * 1024 )
+
+static char test_log_level_buffer[TEST_LOG_LEVEL_BUFFER_BYTES];
+static int test_log_level_buffer_length = 0;
+
+static int test_log_level_printf_function( RELIABLE_CONST char * format, ... )
+{
+    if ( test_log_level_buffer_length < TEST_LOG_LEVEL_BUFFER_BYTES - 1 )
+    {
+        va_list args;
+        va_start( args, format );
+        const int written = vsnprintf( test_log_level_buffer + test_log_level_buffer_length,
+                                       (size_t) ( TEST_LOG_LEVEL_BUFFER_BYTES - test_log_level_buffer_length ),
+                                       format, args );
+        va_end( args );
+
+        if ( written > 0 )
+        {
+            test_log_level_buffer_length += written;
+            if ( test_log_level_buffer_length > TEST_LOG_LEVEL_BUFFER_BYTES - 1 )
+            {
+                test_log_level_buffer_length = TEST_LOG_LEVEL_BUFFER_BYTES - 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static void test_log_level_transmit_packet_function( void * _context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) _context;
+    (void) id;
+    (void) sequence;
+    (void) packet_data;
+    (void) packet_bytes;
+}
+
+static int test_log_level_accept_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) context;
+    (void) id;
+    (void) sequence;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    return 1;
+}
+
+static int test_log_level_reject_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
+{
+    (void) context;
+    (void) id;
+    (void) sequence;
+    (void) packet_data;
+    (void) packet_bytes;
+
+    return 0;
+}
+
+static struct reliable_endpoint_t * test_log_level_create_receiver( int reject )
+{
+    struct reliable_config_t config;
+    reliable_default_config( &config );
+
+    reliable_copy_string( config.name, "receiver", sizeof( config.name ) );
+    config.transmit_packet_function = &test_log_level_transmit_packet_function;
+    config.process_packet_function = reject ? &test_log_level_reject_process_packet_function : &test_log_level_accept_process_packet_function;
+
+    struct reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, 100.0 );
+    check( endpoint );
+
+    return endpoint;
+}
+
+static int test_log_level_write_regular_packet( uint8_t * packet_data, uint16_t sequence, int payload_bytes )
+{
+    uint8_t * p = packet_data;
+    p += reliable_write_packet_header( p, sequence, 0, 0xFFFFFFFF );
+    memset( p, 0x11, payload_bytes );
+    p += payload_bytes;
+    return (int) ( p - packet_data );
+}
+
+static int test_log_level_write_fragment( uint8_t * packet_data, uint16_t sequence, int fragment_id, int num_fragments, int data_bytes )
+{
+    uint8_t * p = packet_data;
+    reliable_write_uint8( &p, 1 );
+    reliable_write_uint16( &p, sequence );
+    reliable_write_uint8( &p, (uint8_t) fragment_id );
+    reliable_write_uint8( &p, (uint8_t) ( num_fragments - 1 ) );
+    if ( fragment_id == 0 )
+    {
+        p += reliable_write_packet_header( p, sequence, 0, 0xFFFFFFFF );
+    }
+    memset( p, 0x22, data_bytes );
+    p += data_bytes;
+    return (int) ( p - packet_data );
+}
+
+#define TEST_LOG_LEVEL_OVERSIZED_PAYLOAD ( 16 * 1024 + 1 )
+
+static void test_log_level_inject_oversized_packet( struct reliable_endpoint_t * receiver )
+{
+    uint8_t packet[TEST_LOG_LEVEL_OVERSIZED_PAYLOAD + 16];
+    const int packet_bytes = test_log_level_write_regular_packet( packet, 0, TEST_LOG_LEVEL_OVERSIZED_PAYLOAD );
+    reliable_endpoint_receive_packet( receiver, packet, packet_bytes );
+}
+
+static void test_log_level_inject_rejected_packet( struct reliable_endpoint_t * receiver )
+{
+    uint8_t packet[64];
+    const int packet_bytes = test_log_level_write_regular_packet( packet, 0, 8 );
+    reliable_endpoint_receive_packet( receiver, packet, packet_bytes );
+}
+
+static void test_log_level_inject_stale_fragment( struct reliable_endpoint_t * receiver )
+{
+    uint8_t packet[64];
+    int i;
+    for ( i = 0; i < 300; ++i )
+    {
+        const int packet_bytes = test_log_level_write_regular_packet( packet, (uint16_t) i, 8 );
+        reliable_endpoint_receive_packet( receiver, packet, packet_bytes );
+    }
+
+    uint8_t fragment[64];
+    const int fragment_bytes = test_log_level_write_fragment( fragment, 0, 0, 1, 8 );
+    reliable_endpoint_receive_packet( receiver, fragment, fragment_bytes );
+}
+
+static void test_log_level_inject_fragment_count_mismatch( struct reliable_endpoint_t * receiver )
+{
+    uint8_t fragment[2048];
+    int fragment_bytes = test_log_level_write_fragment( fragment, 0, 0, 2, 1024 );
+    reliable_endpoint_receive_packet( receiver, fragment, fragment_bytes );
+    fragment_bytes = test_log_level_write_fragment( fragment, 0, 1, 3, 1024 );
+    reliable_endpoint_receive_packet( receiver, fragment, fragment_bytes );
+}
+
+static void test_log_level_inject_duplicate_fragment( struct reliable_endpoint_t * receiver )
+{
+    uint8_t fragment[2048];
+    const int fragment_bytes = test_log_level_write_fragment( fragment, 0, 0, 2, 1024 );
+    reliable_endpoint_receive_packet( receiver, fragment, fragment_bytes );
+    reliable_endpoint_receive_packet( receiver, fragment, fragment_bytes );
+}
+
+static void test_log_level_case( void (*inject)( struct reliable_endpoint_t * ), int reject, RELIABLE_CONST char * expected )
+{
+    const int previous_log_level = log_level;
+    int (*previous_printf_function)( RELIABLE_CONST char *, ... ) = printf_function;
+
+    reliable_set_printf_function( &test_log_level_printf_function );
+
+    test_log_level_buffer[0] = '\0';
+    test_log_level_buffer_length = 0;
+    reliable_log_level( RELIABLE_LOG_LEVEL_ERROR );
+    struct reliable_endpoint_t * endpoint = test_log_level_create_receiver( reject );
+    inject( endpoint );
+    reliable_endpoint_destroy( endpoint );
+    reliable_log_level( previous_log_level );
+    check( strstr( test_log_level_buffer, expected ) == NULL );
+
+    test_log_level_buffer[0] = '\0';
+    test_log_level_buffer_length = 0;
+    reliable_log_level( RELIABLE_LOG_LEVEL_DEBUG );
+    endpoint = test_log_level_create_receiver( reject );
+    inject( endpoint );
+    reliable_endpoint_destroy( endpoint );
+    reliable_log_level( previous_log_level );
+
+    reliable_set_printf_function( previous_printf_function );
+
+    check( strstr( test_log_level_buffer, expected ) != NULL );
+}
+
+static void test_wire_event_log_levels()
+{
+    char oversized_expected[64];
+    snprintf( oversized_expected, sizeof( oversized_expected ), "packet is at %d bytes", TEST_LOG_LEVEL_OVERSIZED_PAYLOAD );
+
+    test_log_level_case( &test_log_level_inject_oversized_packet, 0, oversized_expected );
+    test_log_level_case( &test_log_level_inject_rejected_packet, 1, "process packet failed" );
+    test_log_level_case( &test_log_level_inject_stale_fragment, 0, "could not insert in reassembly buffer (stale)" );
+    test_log_level_case( &test_log_level_inject_fragment_count_mismatch, 0, "fragment count mismatch" );
+    test_log_level_case( &test_log_level_inject_duplicate_fragment, 0, "fragment already received" );
+}
+
 // every function reliable.h declares is called at least once by the suite. this test names
 // them all in one place so a new entry point cannot be added without being exercised
 
@@ -5119,6 +5308,7 @@ void reliable_test()
         RUN_TEST( test_sequence_wrap );
         RUN_TEST( test_fragment_counts );
         RUN_TEST( test_truncated_packets );
+        RUN_TEST( test_wire_event_log_levels );
         RUN_TEST( test_public_api_surface );
     }
 }
