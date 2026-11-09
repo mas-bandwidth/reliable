@@ -2132,6 +2132,390 @@ static void test_generate_ack_bits()
     reliable_sequence_buffer_destroy( sequence_buffer );
 }
 
+// table driven walk of a small sequence buffer across the 65535 -> 0 wrap. every step is checked
+// against its row (accepted or not, the head afterwards) and against a reference model: the set
+// of sequences present with the tag stored for each. after every step the buffer's exists, find
+// and ack bits must agree with the model, and each cleanup the buffer makes must be the cleanup
+// of an entry the model evicted, replaced or removed.
+
+#define TEST_SEQUENCE_WINDOW_NUM_ENTRIES 4
+#define TEST_SEQUENCE_WINDOW_MAX_PRESENT 32
+#define TEST_SEQUENCE_WINDOW_MAX_CLEANUPS 32
+#define TEST_SEQUENCE_WINDOW_CHECK_RADIUS 8
+
+enum
+{
+    TEST_SEQUENCE_WINDOW_TEST_INSERT,
+    TEST_SEQUENCE_WINDOW_INSERT,
+    TEST_SEQUENCE_WINDOW_ADVANCE,
+    TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,
+    TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP,
+    TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP
+};
+
+struct test_sequence_window_step_t
+{
+    int op;
+    uint16_t sequence;
+    int expect_accepted;                    // test_insert and the two inserts only
+    uint16_t expect_head;
+};
+
+struct test_sequence_window_entry_t
+{
+    uint32_t sequence;
+    uint32_t tag;
+};
+
+struct test_sequence_window_cleanups_t
+{
+    int num_cleanups;
+    uint32_t tags[TEST_SEQUENCE_WINDOW_MAX_CLEANUPS];
+};
+
+struct test_sequence_window_model_t
+{
+    uint16_t head;
+    int num_entries;
+    int num_present;
+    uint16_t present_sequence[TEST_SEQUENCE_WINDOW_MAX_PRESENT];
+    uint32_t present_tag[TEST_SEQUENCE_WINDOW_MAX_PRESENT];
+    int num_expected_cleanups;
+    uint32_t expected_cleanups[TEST_SEQUENCE_WINDOW_MAX_CLEANUPS];
+};
+
+static void test_sequence_window_cleanup( void * data, void * allocator_context, void (*free_function)(void*,void*) )
+{
+    (void) free_function;
+    struct test_sequence_window_entry_t * entry = (struct test_sequence_window_entry_t*) data;
+    struct test_sequence_window_cleanups_t * cleanups = (struct test_sequence_window_cleanups_t*) allocator_context;
+    if ( entry->tag != 0 )
+    {
+        check( cleanups->num_cleanups < TEST_SEQUENCE_WINDOW_MAX_CLEANUPS );
+        cleanups->tags[cleanups->num_cleanups++] = entry->tag;
+        entry->tag = 0;
+    }
+}
+
+// a is behind b by 1 .. 32768 in the 16-bit sequence space
+
+static int test_sequence_window_behind( uint16_t a, uint16_t b )
+{
+    uint16_t distance = (uint16_t) ( b - a );
+    return distance >= 1 && distance <= 32768;
+}
+
+static int test_sequence_window_model_find( struct test_sequence_window_model_t * model, uint16_t sequence )
+{
+    int i;
+    for ( i = 0; i < model->num_present; ++i )
+    {
+        if ( model->present_sequence[i] == sequence )
+            return i;
+    }
+    return -1;
+}
+
+static void test_sequence_window_model_drop( struct test_sequence_window_model_t * model, int index, int cleanup )
+{
+    if ( cleanup )
+    {
+        check( model->num_expected_cleanups < TEST_SEQUENCE_WINDOW_MAX_CLEANUPS );
+        model->expected_cleanups[model->num_expected_cleanups++] = model->present_tag[index];
+    }
+    model->num_present--;
+    model->present_sequence[index] = model->present_sequence[model->num_present];
+    model->present_tag[index] = model->present_tag[model->num_present];
+}
+
+// the oldest sequence the window accepts is head - num_entries. anything behind it is stale
+
+static int test_sequence_window_model_stale( struct test_sequence_window_model_t * model, uint16_t sequence )
+{
+    return test_sequence_window_behind( sequence, (uint16_t) ( model->head - model->num_entries ) );
+}
+
+// a sequence at or past the head moves the head to sequence + 1 and evicts what fell out the back
+
+static void test_sequence_window_model_advance( struct test_sequence_window_model_t * model, uint16_t sequence, int cleanup )
+{
+    if ( !test_sequence_window_behind( model->head, (uint16_t) ( sequence + 1 ) ) )
+        return;
+    model->head = (uint16_t) ( sequence + 1 );
+    int i = 0;
+    while ( i < model->num_present )
+    {
+        if ( test_sequence_window_model_stale( model, model->present_sequence[i] ) )
+        {
+            test_sequence_window_model_drop( model, i, cleanup );
+        }
+        else
+        {
+            ++i;
+        }
+    }
+}
+
+static void test_sequence_window_model_store( struct test_sequence_window_model_t * model, uint16_t sequence, uint32_t tag, int cleanup )
+{
+    int index = test_sequence_window_model_find( model, sequence );
+    if ( index >= 0 )
+    {
+        test_sequence_window_model_drop( model, index, cleanup );
+    }
+    check( model->num_present < TEST_SEQUENCE_WINDOW_MAX_PRESENT );
+    model->present_sequence[model->num_present] = sequence;
+    model->present_tag[model->num_present] = tag;
+    model->num_present++;
+}
+
+static void test_sequence_window_check( struct reliable_sequence_buffer_t * sequence_buffer,
+                                        struct test_sequence_window_model_t * model,
+                                        struct test_sequence_window_cleanups_t * cleanups )
+{
+    check( sequence_buffer->sequence == model->head );
+
+    int offset;
+    for ( offset = -TEST_SEQUENCE_WINDOW_CHECK_RADIUS; offset <= TEST_SEQUENCE_WINDOW_CHECK_RADIUS; ++offset )
+    {
+        uint16_t sequence = (uint16_t) ( model->head + offset );
+        int index = test_sequence_window_model_find( model, sequence );
+        struct test_sequence_window_entry_t * entry = (struct test_sequence_window_entry_t*) reliable_sequence_buffer_find( sequence_buffer, sequence );
+        check( reliable_sequence_buffer_exists( sequence_buffer, sequence ) == ( index >= 0 ) );
+        check( ( entry != NULL ) == ( index >= 0 ) );
+        if ( entry )
+        {
+            check( entry->sequence == (uint32_t) sequence );
+            check( entry->tag == model->present_tag[index] );
+        }
+    }
+
+    uint16_t ack = 0;
+    uint32_t ack_bits = 0;
+    reliable_sequence_buffer_generate_ack_bits( sequence_buffer, &ack, &ack_bits );
+    check( ack == (uint16_t) ( model->head - 1 ) );
+    int i;
+    for ( i = 0; i < 32; ++i )
+    {
+        int expected = test_sequence_window_model_find( model, (uint16_t) ( ack - i ) ) >= 0;
+        check( ( ( ack_bits >> i ) & 1 ) == (uint32_t) expected );
+    }
+
+    check( cleanups->num_cleanups == model->num_expected_cleanups );
+    for ( i = 0; i < model->num_expected_cleanups; ++i )
+    {
+        int found = 0;
+        int j;
+        for ( j = 0; j < cleanups->num_cleanups; ++j )
+        {
+            if ( cleanups->tags[j] == model->expected_cleanups[i] )
+                found = 1;
+        }
+        check( found );
+    }
+}
+
+static void test_sequence_window_walk( int requested_num_entries, RELIABLE_CONST struct test_sequence_window_step_t * steps, int num_steps )
+{
+    struct test_sequence_window_cleanups_t cleanups;
+    memset( &cleanups, 0, sizeof( cleanups ) );
+
+    struct reliable_sequence_buffer_t * sequence_buffer = reliable_sequence_buffer_create( requested_num_entries,
+                                                                                           sizeof( struct test_sequence_window_entry_t ),
+                                                                                           &cleanups,
+                                                                                           NULL,
+                                                                                           NULL );
+    check( sequence_buffer );
+
+    // the tables are written for a window of four. a request for three is rounded up to it
+
+    check( sequence_buffer->num_entries == TEST_SEQUENCE_WINDOW_NUM_ENTRIES );
+    check( sequence_buffer->num_entries >= requested_num_entries );
+
+    struct test_sequence_window_model_t model;
+    memset( &model, 0, sizeof( model ) );
+    model.num_entries = sequence_buffer->num_entries;
+
+    test_sequence_window_check( sequence_buffer, &model, &cleanups );
+
+    int step_index;
+    for ( step_index = 0; step_index < num_steps; ++step_index )
+    {
+        RELIABLE_CONST struct test_sequence_window_step_t * step = &steps[step_index];
+        uint16_t sequence = step->sequence;
+        uint32_t tag = (uint32_t) step_index + 1;
+
+        cleanups.num_cleanups = 0;
+        model.num_expected_cleanups = 0;
+
+        switch ( step->op )
+        {
+            case TEST_SEQUENCE_WINDOW_TEST_INSERT:
+            {
+                int expected = !test_sequence_window_model_stale( &model, sequence );
+                check( expected == step->expect_accepted );
+                check( reliable_sequence_buffer_test_insert( sequence_buffer, sequence ) == expected );
+            }
+            break;
+
+            case TEST_SEQUENCE_WINDOW_INSERT:
+            case TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP:
+            {
+                int with_cleanup = step->op == TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP;
+                int expected = !test_sequence_window_model_stale( &model, sequence );
+                if ( with_cleanup && test_sequence_window_behind( model.head, (uint16_t) ( sequence + 1 ) ) )
+                {
+                    expected = 1;
+                }
+                check( expected == step->expect_accepted );
+                if ( expected )
+                {
+                    test_sequence_window_model_advance( &model, sequence, with_cleanup );
+                    test_sequence_window_model_store( &model, sequence, tag, with_cleanup );
+                }
+                struct test_sequence_window_entry_t * entry = (struct test_sequence_window_entry_t*) ( with_cleanup ?
+                    reliable_sequence_buffer_insert_with_cleanup( sequence_buffer, sequence, test_sequence_window_cleanup ) :
+                    reliable_sequence_buffer_insert( sequence_buffer, sequence ) );
+                check( ( entry != NULL ) == expected );
+                if ( entry )
+                {
+                    entry->sequence = sequence;
+                    entry->tag = tag;
+                }
+            }
+            break;
+
+            case TEST_SEQUENCE_WINDOW_ADVANCE:
+            {
+                test_sequence_window_model_advance( &model, sequence, 0 );
+                reliable_sequence_buffer_advance( sequence_buffer, sequence );
+            }
+            break;
+
+            case TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP:
+            {
+                test_sequence_window_model_advance( &model, sequence, 1 );
+                reliable_sequence_buffer_advance_with_cleanup( sequence_buffer, sequence, test_sequence_window_cleanup );
+            }
+            break;
+
+            case TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP:
+            {
+                int index = test_sequence_window_model_find( &model, sequence );
+                if ( index >= 0 )
+                {
+                    test_sequence_window_model_drop( &model, index, 1 );
+                }
+                reliable_sequence_buffer_remove_with_cleanup( sequence_buffer, sequence, test_sequence_window_cleanup );
+            }
+            break;
+
+            default:
+                check( 0 );
+        }
+
+        check( model.head == step->expect_head );
+        test_sequence_window_check( sequence_buffer, &model, &cleanups );
+    }
+
+    reliable_sequence_buffer_destroy( sequence_buffer );
+}
+
+// insert, test_insert and advance. the walk climbs to the top of the sequence space in jumps,
+// then crosses 65535 -> 0 with out of order inserts and the head - 4 / head - 5 boundary each side
+
+static RELIABLE_CONST struct test_sequence_window_step_t test_sequence_window_insert_steps[] =
+{
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65532, 1, 0     },      // head - 4 is accepted
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65531, 0, 0     },      // head - 5 is stale
+    { TEST_SEQUENCE_WINDOW_INSERT,      65531, 0, 0     },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     16384, 0, 16385 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     32768, 0, 32769 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     49152, 0, 49153 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     65527, 0, 65528 },
+    { TEST_SEQUENCE_WINDOW_INSERT,      65530, 1, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT,      65528, 1, 65531 },      // out of order
+    { TEST_SEQUENCE_WINDOW_INSERT,      65527, 1, 65531 },      // head - 4
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65526, 0, 65531 },      // head - 5
+    { TEST_SEQUENCE_WINDOW_INSERT,      65526, 0, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT,      65533, 1, 65534 },      // evicts 65527 and 65528
+    { TEST_SEQUENCE_WINDOW_INSERT,      65535, 1, 0     },      // head wraps to 0, evicts 65530
+    { TEST_SEQUENCE_WINDOW_INSERT,      0,     1, 1     },
+    { TEST_SEQUENCE_WINDOW_INSERT,      65534, 1, 1     },      // out of order, behind the wrap
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65533, 1, 1     },      // head - 4, behind the wrap
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65532, 0, 1     },      // head - 5, behind the wrap
+    { TEST_SEQUENCE_WINDOW_INSERT,      65532, 0, 1     },
+    { TEST_SEQUENCE_WINDOW_INSERT,      2,     1, 3     },      // evicts 65533 and 65534
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     1,     0, 3     },      // behind the head: no change
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     2,     0, 3     },      // head - 1: no change
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     4,     0, 5     },      // evicts 65535 and 0
+    { TEST_SEQUENCE_WINDOW_INSERT,      1,     1, 5     },      // head - 4
+    { TEST_SEQUENCE_WINDOW_INSERT,      3,     1, 5     },
+    { TEST_SEQUENCE_WINDOW_INSERT,      6,     1, 7     },      // evicts 1 and 2
+    { TEST_SEQUENCE_WINDOW_INSERT,      10,    1, 11    },      // jump of 3 past the head: keeps nothing below 7
+    { TEST_SEQUENCE_WINDOW_INSERT,      8,     1, 11    },
+    { TEST_SEQUENCE_WINDOW_INSERT,      15,    1, 16    },      // jump of 4 past the head clears the window
+    { TEST_SEQUENCE_WINDOW_INSERT,      12,    1, 16    },      // head - 4
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     16000, 0, 16001 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     32000, 0, 32001 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     48000, 0, 48001 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE,     65530, 0, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT,      65529, 1, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT,      3,     1, 4     },      // jump of 8 across the wrap clears the window
+    { TEST_SEQUENCE_WINDOW_INSERT,      0,     1, 4     },      // head - 4
+    { TEST_SEQUENCE_WINDOW_TEST_INSERT, 65535, 0, 4     },      // head - 5, behind the wrap
+    { TEST_SEQUENCE_WINDOW_INSERT,      65535, 0, 4     },
+};
+
+// insert_with_cleanup, advance_with_cleanup and remove_with_cleanup over the same ground. every
+// entry that leaves the window, is replaced or is removed is cleaned up exactly once
+
+static RELIABLE_CONST struct test_sequence_window_step_t test_sequence_window_cleanup_steps[] =
+{
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 16384, 0, 16385 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 32768, 0, 32769 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 49152, 0, 49153 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 65529, 0, 65530 },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65531, 1, 65532 },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65529, 1, 65532 },     // out of order
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65528, 1, 65532 },     // head - 4
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65527, 0, 65532 },     // head - 5 is stale
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65529, 1, 65532 },     // replaces 65529, cleaning it up
+    { TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP,  65531, 0, 65532 },
+    { TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP,  65530, 0, 65532 },     // not present: no change
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  0,     1, 1     },     // head wraps to 1, cleans up 65528 and 65529
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65534, 1, 1     },     // out of order, behind the wrap
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 65535, 0, 1     },     // behind the head: no change
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 0,     0, 1     },     // head - 1: no change
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 2,     0, 3     },     // cleans up 65534
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65535, 1, 3     },     // head - 4, behind the wrap
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65534, 0, 3     },     // head - 5, behind the wrap
+    { TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP,  65535, 0, 3     },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  1,     1, 3     },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 6,     0, 7     },     // cleans up 0 and 1
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  5,     1, 7     },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  12,    1, 13    },     // jump of 6 clears the window, cleaning up 5
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 16000, 0, 16001 },     // cleans up 12
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 32000, 0, 32001 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 48000, 0, 48001 },
+    { TEST_SEQUENCE_WINDOW_ADVANCE_WITH_CLEANUP, 65530, 0, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  65530, 1, 65531 },
+    { TEST_SEQUENCE_WINDOW_INSERT_WITH_CLEANUP,  3,     1, 4     },     // jump of 8 across the wrap, cleans up 65530
+    { TEST_SEQUENCE_WINDOW_REMOVE_WITH_CLEANUP,  3,     0, 4     },
+};
+
+static void test_sequence_buffer_window()
+{
+    int num_insert_steps = (int) ( sizeof( test_sequence_window_insert_steps ) / sizeof( test_sequence_window_insert_steps[0] ) );
+    int num_cleanup_steps = (int) ( sizeof( test_sequence_window_cleanup_steps ) / sizeof( test_sequence_window_cleanup_steps[0] ) );
+
+    test_sequence_window_walk( 4, test_sequence_window_insert_steps, num_insert_steps );
+    test_sequence_window_walk( 4, test_sequence_window_cleanup_steps, num_cleanup_steps );
+
+    test_sequence_window_walk( 3, test_sequence_window_insert_steps, num_insert_steps );
+    test_sequence_window_walk( 3, test_sequence_window_cleanup_steps, num_cleanup_steps );
+}
+
 static void test_packet_header()
 {
     uint16_t write_sequence;
@@ -3072,28 +3456,58 @@ void test_sequence_buffer_rollover()
     context.receiver = reliable_endpoint_create( &receiver_config, time );
 
     uint8_t packet_data[TEST_MAX_PACKET_BYTES] = {0};
+    int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
+
+    // small packets up to 65534, then fragmented packets at 32768, 65535 and 0 either side of
+    // the half way point and the wrap, then a small packet after the wrap
 
     int num_packets_sent = 0;
     int i;
-    for (i = 0; i <= 32767; ++i)
+    for ( i = 0; i < 65535; ++i )
     {
-        uint8_t packet_data[16] = {0};
-        int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-        reliable_endpoint_next_packet_sequence( context.sender );
-        reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
-
+        check( reliable_endpoint_next_packet_sequence( context.sender ) == (uint16_t) i );
+        if ( i == 32768 )
+        {
+            reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+        }
+        else
+        {
+            uint8_t small_packet_data[16] = {0};
+            reliable_endpoint_send_packet( context.sender, small_packet_data, (int) sizeof( small_packet_data ) );
+        }
         ++num_packets_sent;
     }
 
-    int packet_bytes = sizeof( packet_data ) / sizeof( uint8_t );
-    reliable_endpoint_next_packet_sequence( context.sender );
+    check( reliable_endpoint_next_packet_sequence( context.sender ) == 65535 );
     reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
     ++num_packets_sent;
 
+    check( reliable_endpoint_next_packet_sequence( context.sender ) == 0 );
+    reliable_endpoint_send_packet( context.sender, packet_data, packet_bytes );
+    ++num_packets_sent;
+
+    check( reliable_endpoint_next_packet_sequence( context.sender ) == 1 );
+    {
+        uint8_t small_packet_data[16] = {0};
+        reliable_endpoint_send_packet( context.sender, small_packet_data, (int) sizeof( small_packet_data ) );
+        ++num_packets_sent;
+    }
+
+    check( reliable_endpoint_next_packet_sequence( context.sender ) == 2 );
+
     RELIABLE_CONST uint64_t * receiver_counters = reliable_endpoint_counters( context.receiver );
 
-    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == (uint16_t) num_packets_sent );
+    check( num_packets_sent == 65538 );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == (uint64_t) num_packets_sent );
     check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_INVALID] == 0 );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_STALE] == 0 );
+    check( receiver_counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_DUPLICATE] == 0 );
+
+    // the receiver's window now spans the wrap: 65535, 0 and 1 are all present
+
+    check( reliable_sequence_buffer_exists( context.receiver->received_packets, 65535 ) );
+    check( reliable_sequence_buffer_exists( context.receiver->received_packets, 0 ) );
+    check( reliable_sequence_buffer_exists( context.receiver->received_packets, 1 ) );
 
     reliable_endpoint_destroy( context.sender );
     reliable_endpoint_destroy( context.receiver );
@@ -4479,6 +4893,7 @@ void reliable_test()
     {
         RUN_TEST( test_endian );
         RUN_TEST( test_sequence_buffer );
+        RUN_TEST( test_sequence_buffer_window );
         RUN_TEST( test_generate_ack_bits );
         RUN_TEST( test_packet_header );
         RUN_TEST( test_acks );
