@@ -46,6 +46,9 @@
 
 #define MAX_PACKET_BYTES (16*1024)
 
+#define FUZZ_PAYLOAD_MAGIC 0x5A4C4646u
+#define FUZZ_PAYLOAD_HEADER_BYTES 12
+
 static volatile int quit = 0;
 
 void interrupt_handler( int signal )
@@ -103,6 +106,8 @@ static void link_clear( struct link_t * link )
     link->num_packets = 0;
 }
 
+static int link_corrupted;
+
 // Flush the link into an endpoint, applying loss, reordering, duplication and
 // single-bit corruption so the parser sees plausible-but-broken packets.
 
@@ -127,7 +132,10 @@ static void link_flush( struct link_t * link, struct reliable_endpoint_t * to )
             continue;
 
         if ( random_int( 0, 99 ) < 20 )                            // 20% single-bit corruption
+        {
             data[random_int( 0, bytes - 1 )] ^= (uint8_t) ( 1 << random_int( 0, 7 ) );
+            link_corrupted = 1;
+        }
 
         int copies = random_int( 0, 99 ) < 5 ? 2 : 1;              // 5% duplication
         int c;
@@ -136,6 +144,38 @@ static void link_flush( struct link_t * link, struct reliable_endpoint_t * to )
     }
 
     link_clear( link );
+}
+
+// Every delivered payload carries its own sequence number and a checksum, so the
+// process callback can tell a real packet apart from injected or corrupted bytes
+// instead of accepting every parse the way the old callback did.
+
+static uint32_t fuzz_payload_checksum( const uint8_t * data, int bytes )
+{
+    uint32_t hash = 2166136261u;
+    int i;
+    for ( i = 0; i < bytes; ++i )
+    {
+        hash ^= data[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+// Semantic oracle state. Counts are cumulative (they survive 16-bit sequence
+// wrap) and the iteration stamp enforces at-most-once delivery per cycle.
+
+static uint16_t fuzz_sent_count[2][65536];
+static uint16_t fuzz_accepted_count[2][65536];
+static uint32_t fuzz_last_delivery_iteration[2][65536];
+static uint32_t fuzz_iteration_number = 0;
+
+static void fuzz_oracle_failure( const char * what, uint64_t id, uint16_t sequence )
+{
+    printf( "\n[fuzz] oracle failure: %s (id=%" PRIu64 ", sequence=%u, iteration=%u)\n",
+            what, id, sequence, fuzz_iteration_number );
+    fflush( stdout );
+    exit( 1 );
 }
 
 struct fuzz_context_t
@@ -161,10 +201,41 @@ void test_transmit_packet_function( void * context, uint64_t id, uint16_t sequen
 int test_process_packet_function( void * context, uint64_t id, uint16_t sequence, uint8_t * packet_data, int packet_bytes )
 {
     (void) context;
-    (void) id;
-    (void) sequence;
-    (void) packet_data;
-    (void) packet_bytes;
+
+    if ( packet_bytes < FUZZ_PAYLOAD_HEADER_BYTES )
+        return 0;
+
+    uint32_t magic;
+    uint16_t payload_sequence;
+    uint16_t payload_bytes;
+    uint32_t payload_checksum;
+
+    memcpy( &magic, packet_data + 0, sizeof( magic ) );
+    memcpy( &payload_sequence, packet_data + 4, sizeof( payload_sequence ) );
+    memcpy( &payload_bytes, packet_data + 6, sizeof( payload_bytes ) );
+    memcpy( &payload_checksum, packet_data + 8, sizeof( payload_checksum ) );
+
+    if ( magic != FUZZ_PAYLOAD_MAGIC )
+        return 0;
+    if ( payload_sequence != sequence )
+        return 0;
+    if ( payload_bytes != (uint16_t) ( packet_bytes - FUZZ_PAYLOAD_HEADER_BYTES ) )
+        return 0;
+    if ( payload_checksum != fuzz_payload_checksum( packet_data + FUZZ_PAYLOAD_HEADER_BYTES,
+                                                     packet_bytes - FUZZ_PAYLOAD_HEADER_BYTES ) )
+        return 0;
+
+    if ( fuzz_last_delivery_iteration[id][sequence] == fuzz_iteration_number )
+        fuzz_oracle_failure( "sequence delivered twice in one cycle", id, sequence );
+    fuzz_last_delivery_iteration[id][sequence] = fuzz_iteration_number;
+
+    if ( fuzz_accepted_count[id][sequence] == 0xFFFF )
+        fuzz_oracle_failure( "delivery counter overflow", id, sequence );
+    fuzz_accepted_count[id][sequence]++;
+
+    if ( fuzz_accepted_count[id][sequence] > fuzz_sent_count[id ^ 1][sequence] )
+        fuzz_oracle_failure( "sequence delivered more times than it was sent", id, sequence );
+
     return 1;
 }
 
@@ -184,6 +255,10 @@ void fuzz_initialize()
 {
     reliable_init();
     memset( &ctx, 0, sizeof( ctx ) );
+    memset( fuzz_sent_count, 0, sizeof( fuzz_sent_count ) );
+    memset( fuzz_accepted_count, 0, sizeof( fuzz_accepted_count ) );
+    memset( fuzz_last_delivery_iteration, 0xFF, sizeof( fuzz_last_delivery_iteration ) );
+    fuzz_iteration_number = 0;
     ctx.client = make_endpoint( 0, "client" );
     ctx.server = make_endpoint( 1, "server" );
 }
@@ -198,13 +273,27 @@ void fuzz_shutdown()
     reliable_term();
 }
 
-static void send_random_packet( struct reliable_endpoint_t * endpoint )
+static void send_random_packet( struct reliable_endpoint_t * endpoint, int endpoint_id )
 {
     static uint8_t packet_data[MAX_PACKET_BYTES];
-    int packet_bytes = random_int( 1, MAX_PACKET_BYTES );
+    const uint16_t sequence = reliable_endpoint_next_packet_sequence( endpoint );
+    if ( fuzz_sent_count[endpoint_id][sequence] == 0xFFFF )
+        fuzz_oracle_failure( "send counter overflow", (uint64_t) endpoint_id, sequence );
+    fuzz_sent_count[endpoint_id][sequence]++;
+
+    const int body_bytes = random_int( 1, MAX_PACKET_BYTES - FUZZ_PAYLOAD_HEADER_BYTES );
+    const int packet_bytes = body_bytes + FUZZ_PAYLOAD_HEADER_BYTES;
+    const uint32_t magic = FUZZ_PAYLOAD_MAGIC;
+    const uint16_t payload_bytes = (uint16_t) body_bytes;
+    uint32_t payload_checksum;
     int i;
-    for ( i = 0; i < packet_bytes; ++i )
-        packet_data[i] = (uint8_t) rand();
+    for ( i = 0; i < body_bytes; ++i )
+        packet_data[FUZZ_PAYLOAD_HEADER_BYTES + i] = (uint8_t) rand();
+    payload_checksum = fuzz_payload_checksum( packet_data + FUZZ_PAYLOAD_HEADER_BYTES, body_bytes );
+    memcpy( packet_data + 0, &magic, sizeof( magic ) );
+    memcpy( packet_data + 4, &sequence, sizeof( sequence ) );
+    memcpy( packet_data + 6, &payload_bytes, sizeof( payload_bytes ) );
+    memcpy( packet_data + 8, &payload_checksum, sizeof( payload_checksum ) );
     reliable_endpoint_send_packet( endpoint, packet_data, packet_bytes );
 }
 
@@ -218,11 +307,33 @@ static void inject_random_packet( struct reliable_endpoint_t * endpoint )
     reliable_endpoint_receive_packet( endpoint, packet_data, packet_bytes );
 }
 
+// Every ack reported by an endpoint must name a sequence that endpoint sent and
+// the far end actually accepted. Corruption can flip ack bits in an otherwise
+// valid header, so this runs only on cycles where no wire corruption happened.
+
+static void validate_acks( struct reliable_endpoint_t * endpoint, int endpoint_id )
+{
+    int num_acks = 0;
+    RELIABLE_CONST uint16_t * acks = reliable_endpoint_get_acks( endpoint, &num_acks );
+    int i;
+    for ( i = 0; i < num_acks; ++i )
+    {
+        const uint16_t sequence = acks[i];
+        if ( fuzz_sent_count[endpoint_id][sequence] == 0 )
+            fuzz_oracle_failure( "acked a sequence that was never sent", (uint64_t) endpoint_id, sequence );
+        if ( fuzz_accepted_count[endpoint_id ^ 1][sequence] == 0 )
+            fuzz_oracle_failure( "acked a sequence that was never delivered", (uint64_t) endpoint_id, sequence );
+    }
+}
+
 void fuzz_iteration( double time )
 {
+    fuzz_iteration_number++;
+    link_corrupted = 0;
+
     // real traffic in both directions (most large enough to fragment)
-    send_random_packet( ctx.client );
-    send_random_packet( ctx.server );
+    send_random_packet( ctx.client, 0 );
+    send_random_packet( ctx.server, 1 );
 
     // deliver queued traffic across the lossy / reordering / corrupting link
     link_flush( &ctx.client_to_server, ctx.server );
@@ -234,6 +345,12 @@ void fuzz_iteration( double time )
 
     reliable_endpoint_update( ctx.client, time );
     reliable_endpoint_update( ctx.server, time );
+
+    if ( !link_corrupted )
+    {
+        validate_acks( ctx.client, 0 );
+        validate_acks( ctx.server, 1 );
+    }
 
     reliable_endpoint_clear_acks( ctx.client );
     reliable_endpoint_clear_acks( ctx.server );
