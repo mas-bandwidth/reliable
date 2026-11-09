@@ -3009,7 +3009,7 @@ static void test_stale_packets()
 
 static void test_empty_packet_rejected()
 {
-    double time = 100.0;
+    double time = 1000.0;
 
     struct test_context_t context;
     test_default_context( &context );
@@ -3033,6 +3033,12 @@ static void test_empty_packet_rejected()
     RELIABLE_CONST uint64_t * counters = reliable_endpoint_counters( context.receiver );
 
     check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID] == 1 );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 0 );
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED] == 0 );
+
+    reliable_endpoint_receive_packet( context.receiver, packet_data, -1 );
+
+    check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_INVALID] == 2 );
     check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED] == 0 );
     check( counters[RELIABLE_ENDPOINT_COUNTER_NUM_FRAGMENTS_RECEIVED] == 0 );
 
