@@ -689,9 +689,10 @@ static int reliable_config_valid( struct reliable_config_t * config )
         return 0;
     }
 
-    if ( (int64_t) config->packet_header_size + (int64_t) config->max_packet_size > INT_MAX )
+    if ( (int64_t) config->packet_header_size + (int64_t) config->max_packet_size +
+         RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES > INT_MAX )
     {
-        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] packet_header_size (%d) plus max_packet_size (%d) does not fit a packet length\n",
+        reliable_printf( RELIABLE_LOG_LEVEL_ERROR, "[%.*s] packet_header_size (%d) plus max_packet_size (%d) does not fit a received packet length\n",
                          RELIABLE_MAX_NAME_CHARS, config->name, config->packet_header_size, config->max_packet_size );
         return 0;
     }
@@ -4707,6 +4708,29 @@ static void test_endpoint_create_invalid_config()
     check( !reliable_checked_size( INT_MAX, SIZE_MAX / 3, &bytes ) );
 }
 
+// the received byte statistic adds packet_header_size to the whole received length, which can
+// carry up to RELIABLE_MAX_PACKET_HEADER_BYTES + RELIABLE_FRAGMENT_HEADER_BYTES more than
+// max_packet_size, so the config check leaves room for both headers in a packet length
+
+static void test_config_refuses_header_plus_packet_near_int_max()
+{
+    struct reliable_config_t config;
+
+    reliable_default_config( &config );
+    config.transmit_packet_function = &test_transmit_packet_function;
+    config.process_packet_function = &test_process_packet_function;
+
+    const int largest_header_size = INT_MAX - config.max_packet_size - RELIABLE_MAX_PACKET_HEADER_BYTES - RELIABLE_FRAGMENT_HEADER_BYTES;
+
+    config.packet_header_size = largest_header_size + 1;
+    check( reliable_endpoint_create( &config, 0.0 ) == NULL );
+
+    config.packet_header_size = largest_header_size;
+    struct reliable_endpoint_t * endpoint = reliable_endpoint_create( &config, 0.0 );
+    check( endpoint );
+    reliable_endpoint_destroy( endpoint );
+}
+
 // RL-06: every allocation failure returns NULL, in every build, having freed what it took
 
 #define TEST_FAILING_ALLOCATOR_SLOTS 64
@@ -5507,6 +5531,7 @@ void reliable_test()
         RUN_TEST( test_jitter_estimate );
         RUN_TEST( test_bandwidth_estimate );
         RUN_TEST( test_endpoint_create_invalid_config );
+        RUN_TEST( test_config_refuses_header_plus_packet_near_int_max );
         RUN_TEST( test_endpoint_create_allocation_failure );
         RUN_TEST( test_endpoint_name_terminated );
         RUN_TEST( test_config_name_bounded_in_rejection_log );
