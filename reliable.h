@@ -144,6 +144,9 @@ RELIABLE_EXPORT void reliable_term(void);
 // sent_packets_buffer_size and received_packets_buffer_size must be at least 4 for bandwidth statistics
 // (the sample count is buffer_size / 2 and needs two distinct packet times).
 // size 1 also gives a zero packet loss estimate because there are no sent samples.
+// sent_packets_buffer_size, received_packets_buffer_size and fragment_reassembly_buffer_size must not
+// exceed 16384. each is rounded up to the next power of two, so the window it tracks (and the memory
+// it holds) can be up to twice the configured value. the statistics still sample the configured value.
 
 struct reliable_config_t
 {
@@ -217,7 +220,8 @@ RELIABLE_EXPORT void reliable_default_config( struct reliable_config_t * config 
 // returns NULL in every build, debug and release, if the config is not valid or if any
 // allocation fails. a refused config is one whose fields are out of range or whose
 // relationships do not hold: fragment_above must not exceed max_packet_size, and
-// max_fragments * fragment_size must cover max_packet_size. on failure nothing is retained:
+// max_fragments * fragment_size must cover max_packet_size. a sent, received or fragment
+// reassembly buffer size above 16384 is refused too. on failure nothing is retained:
 // every allocation already made is handed back to free_function before create returns.
 // check the result.
 
